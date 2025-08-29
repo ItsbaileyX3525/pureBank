@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-gray-900 text-white h-screen w-screen">
+<head>
+    <meta charset="UTF-8">
+    <link href="/src/style.css" rel="stylesheet">
+    <style>
+      input[type=number]::-webkit-inner-spin-button,
+      input[type=number]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        background: #a78bfa;
+        color: #1e293b;
+        border-radius: 4px;
+        width: 1.5em;
+        height: 1.5em;
+        margin: 0;
+      }
+      input[type=number] {
+        appearance: textfield;
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
+    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+  <div class="bg-black grid grid-cols-4 gap-2 text-center pb-1 rounded-b-2xl">
+    <a href="/"><div  class="bg-violet-400 rounded-b-2xl cursor-pointer select-none text-2xl hover:text-[25px] active:text-[23px]" data-link>Home</div></a>
+    <a href="/shop"><div class="bg-violet-400 rounded-b-2xl cursor-pointer select-none text-2xl hover:text-[25px] active:text-[23px]" data-link>Create order</div></a>
+    <a href="/orders"><div class="bg-violet-400 rounded-b-2xl cursor-pointer select-none text-2xl hover:text-[25px] active:text-[23px]">Previous work</div></a>
+    <a href="/account"><div class="bg-violet-400 rounded-b-2xl cursor-pointer select-none text-2xl hover:text-[25px] active:text-[23px]">Account</div></a>  </div>
+  <h1 class="text-center text-3xl mt-4">Order a 3D Print</h1>
+  <div class="w-full lg:w-4/5 mx-auto bg-gray-700 mt-8 rounded-xl p-6 flex flex-col items-center max-w-[90%]">
+    <form id="shopForm" class="flex flex-col gap-4 w-full max-w-xl">
+      <label class="flex flex-col">
+        <span class="mb-1">Model name or description</span>
+  <input type="text" name="model" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors" placeholder="e.g. Batmobile, Infinity Gauntlet...">
+      </label>
+      <label class="flex flex-col">
+        <span class="mb-1">Weight (grams)</span>
+  <input type="number" name="weight" min="1" step="1" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors" placeholder="e.g. 100">
+      </label>
+      <label class="flex flex-col">
+        <span class="mb-1">Plastic type</span>
+  <select name="plastic" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
+          <option value="pla">PLA Basic+ (default)</option>
+          <option value="pbse">PBSE (+£0.10/g)</option>
+          <option value="abs">ABS (+£0.15/g)</option>
+        </select>
+      </label>
+      <label class="flex flex-col">
+        <span class="mb-1">Delivery time frame</span>
+  <select name="delivery" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
+          <option value="standard">Whenever (1-7 days, FREE)</option>
+          <option value="fast">Fast (1-2 days, +£2)</option>
+          <option value="express">Express (Same day, +£3.50)</option>
+        </select>
+      </label>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="letBailey" name="letBailey" class="w-4 h-4">
+        <label for="letBailey" class="select-none cursor-pointer">Let Bailey find out (ignore weight and plastic type)</label>
+      </div>
+      <div class="bg-gray-800 rounded p-3 mt-2 flex flex-col items-center">
+        <span class="text-lg">Total cost: <span id="totalCost">£0.00</span></span>
+      </div>
+      <button type="submit" class="bg-violet-500 hover:bg-violet-600 text-white rounded px-4 py-2 mt-2">Submit Order</button>
+    </form>
+  </div>
+<script type="module" src="/src/shop.ts"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+.github-icon:hover {
+	content: url("/icons/github-dark.svg");
+}
+
+.youtube-icon:hover {
+	content: url("/icons/youtube-dark.svg");
+}
+
+.discord-icon:hover {
+	content: url("/icons/discord-dark.svg");
+}
+
+.tab-button.active {
+    transition: all 0.2s ease-in-out;
+}
+
+.tab-button:hover {
+    transition: all 0.2s ease-in-out;
+}
+
+.profile-card {
+    backdrop-filter: blur(10px);
+    background: rgba(31, 41, 55, 0.8);
+}
+
+.order-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.order-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.15);
+}
+
+.tab-button.active {
+    background-color: rgb(139 92 246);
+}
+
+.tab-button:not(.active):hover {
+    background-color: rgb(75 85 99);
+}
