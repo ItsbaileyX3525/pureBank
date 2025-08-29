@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+real_cert.pem
+real_key.pem

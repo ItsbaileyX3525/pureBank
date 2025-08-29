@@ -11,7 +11,23 @@ import 'dotenv/config';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+
 const app = express();
+
+// Serve static files from /dist as the root
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// Serve HTML files from /dist without requiring .html extension
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !path.extname(req.path)) {
+        const htmlFile = path.join(distPath, req.path + '.html');
+        if (fs.existsSync(htmlFile)) {
+            return res.sendFile(htmlFile);
+        }
+    }
+    next();
+});
 
 // Check for SSL certificates
 const sslPath = path.join(__dirname, 'ssl');
@@ -56,9 +72,6 @@ connection.connect((err) => {
     }
 });
 
-app.set('views', path.join(__dirname, 'views'));
-
-app.use(express.static(path.join(__dirname, 'dist')));
 
 app.get('/hello', (req, res) => {
     const name = 'World';
@@ -320,10 +333,6 @@ app.delete('/admin/users/:id', (req, res) => {
             res.json({ success: true, message: 'User and all associated orders deleted successfully' });
         });
     });
-});
-
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
 });
 
 // Create and start the server
