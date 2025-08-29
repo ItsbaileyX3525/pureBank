@@ -3,13 +3,41 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql';
 import bcrypt from 'bcrypt';
+import https from 'https';
+import http from 'http';
+import fs from 'fs';
 import 'dotenv/config';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3000;
+
+// Check for SSL certificates
+const sslPath = path.join(__dirname, 'ssl');
+const certPath = path.join(sslPath, 'cert.pem');
+const keyPath = path.join(sslPath, 'key.pem');
+
+let useSSL = false;
+let sslOptions = {};
+
+if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    try {
+        sslOptions = {
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath)
+        };
+        useSSL = true;
+        console.log('SSL certificates found, using HTTPS');
+    } catch (error) {
+        console.warn('SSL certificates found but could not be read:', error.message);
+        console.log('Falling back to HTTP');
+    }
+} else {
+    console.log('No SSL certificates found, using HTTP');
+}
+
+const port = useSSL ? 443 : 80;
 
 const saltRounds = 10;
 
@@ -296,4 +324,12 @@ app.delete('/admin/users/:id', (req, res) => {
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
+});
+
+// Create and start the server
+const server = useSSL ? https.createServer(sslOptions, app) : http.createServer(app);
+
+server.listen(port, () => {
+    const protocol = useSSL ? 'https' : 'http';
+    console.log(`Server running at ${protocol}://localhost:${port}`);
 });
