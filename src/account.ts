@@ -14,6 +14,7 @@ interface Order {
     delivery: string;
     price: number;
     fulfilled: boolean;
+    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
     created_at: string;
 }
 
@@ -29,7 +30,19 @@ class AccountPage {
         this.setupTabs();
         this.setupLogout();
         this.showInitialLoadingState();
-        this.loadUserData();
+        await this.loadUserDataAndOrders();
+    }
+
+    private async loadUserDataAndOrders() {
+        const userId = localStorage.getItem('userId');
+        const username = localStorage.getItem('username');
+        
+        if (!userId || !username) {
+            window.location.href = '/signup.html';
+            return;
+        }
+        
+        await this.fetchUserProfile(parseInt(userId));
         await this.loadOrders();
     }
 
@@ -82,18 +95,6 @@ class AccountPage {
                 this.loadTabContent(tabId);
             });
         });
-    }
-
-    private loadUserData() {
-        const userId = localStorage.getItem('userId');
-        const username = localStorage.getItem('username');
-        
-        if (!userId || !username) {
-            window.location.href = '/signup.html';
-            return;
-        }
-        
-        this.fetchUserProfile(parseInt(userId));
     }
 
     private async fetchUserProfile(userId: number) {
@@ -218,13 +219,15 @@ class AccountPage {
             if (data.success && data.orders) {
                 activeOrders = data.orders;
             } else {
-                activeOrders = this.orders.filter(order => !order.fulfilled);
+                // Use status for filtering instead of fulfilled
+                activeOrders = this.orders.filter(order => order.status === 'pending' || order.status === 'confirmed');
             }
             
             container.innerHTML = this.renderOrders(activeOrders);
         } catch (error) {
             console.error('Error fetching active orders:', error);
-            const activeOrders = this.orders.filter(order => !order.fulfilled);
+            // Use status for filtering instead of fulfilled
+            const activeOrders = this.orders.filter(order => order.status === 'pending' || order.status === 'confirmed');
             container.innerHTML = this.renderOrders(activeOrders);
         }
     }
@@ -248,13 +251,15 @@ class AccountPage {
             if (data.success && data.orders) {
                 completedOrders = data.orders;
             } else {
-                completedOrders = this.orders.filter(order => order.fulfilled);
+                // Use status for filtering instead of fulfilled
+                completedOrders = this.orders.filter(order => order.status === 'completed');
             }
             
             container.innerHTML = this.renderOrders(completedOrders);
         } catch (error) {
             console.error('Error fetching completed orders:', error);
-            const completedOrders = this.orders.filter(order => order.fulfilled);
+            // Use status for filtering instead of fulfilled
+            const completedOrders = this.orders.filter(order => order.status === 'completed');
             container.innerHTML = this.renderOrders(completedOrders);
         }
     }
@@ -263,7 +268,7 @@ class AccountPage {
         if (orders.length === 0) {
             return `
                 <div class="text-center py-12 text-gray-400">
-                    <div class="text-6xl mb-4">Box</div>
+                    <div class="text-6xl mb-4">📦</div>
                     <h3 class="text-xl font-semibold text-white mb-2">No orders yet</h3>
                     <p class="mb-6">You haven't placed any 3D printing orders yet.</p>
                     <a href="/shop.html" class="bg-violet-500 hover:bg-violet-600 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-block">
@@ -277,9 +282,15 @@ class AccountPage {
     }
 
     private renderOrderCard(order: Order): string {
-        const statusBadge = order.fulfilled 
-            ? '<span class="bg-green-500 text-green-100 px-2 py-1 rounded-full text-xs font-medium">Completed</span>'
-            : '<span class="bg-yellow-500 text-yellow-100 px-2 py-1 rounded-full text-xs font-medium">In Progress</span>';
+        // Use status instead of fulfilled for status badge
+        let statusBadge = '';
+        if (order.status === 'completed') {
+            statusBadge = '<span class="bg-green-500 text-green-100 px-2 py-1 rounded-full text-xs font-medium">Completed</span>';
+        } else if (order.status === 'confirmed') {
+            statusBadge = '<span class="bg-blue-500 text-blue-100 px-2 py-1 rounded-full text-xs font-medium">Confirmed</span>';
+        } else {
+            statusBadge = '<span class="bg-yellow-500 text-yellow-100 px-2 py-1 rounded-full text-xs font-medium">Pending</span>';
+        }
 
         const formattedDate = new Date(order.created_at).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -287,10 +298,20 @@ class AccountPage {
             day: 'numeric'
         });
 
-        const deliveryIcon = order.delivery === 'fast' ? 'Fast' : 'Standard';
+        // Handle all delivery types
+        let deliveryLabel = '';
+        if (order.delivery === 'fast') deliveryLabel = 'Fast';
+        else if (order.delivery === 'express') deliveryLabel = 'Express';
+        else deliveryLabel = 'Standard';
+
+        // Use status for border color
+        let borderColor = '';
+        if (order.status === 'completed') borderColor = 'border-green-500';
+        else if (order.status === 'confirmed') borderColor = 'border-blue-500';
+        else borderColor = 'border-yellow-500';
 
         return `
-            <div class="order-card bg-gray-700 rounded-lg p-4 border-l-4 ${order.fulfilled ? 'border-green-500' : 'border-yellow-500'} hover:bg-gray-600 transition-all duration-200">
+            <div class="order-card bg-gray-700 rounded-lg p-4 border-l-4 ${borderColor} hover:bg-gray-600 transition-all duration-200">
                 <div class="flex justify-between items-start mb-3">
                     <div>
                         <h3 class="text-lg font-semibold text-white">${order.model_name}</h3>
@@ -310,7 +331,7 @@ class AccountPage {
                     </div>
                     <div>
                         <span class="text-gray-400">Delivery:</span>
-                        <p class="text-white font-medium">${deliveryIcon} ${order.delivery}</p>
+                        <p class="text-white font-medium">${deliveryLabel}</p>
                     </div>
                     <div>
                         <span class="text-gray-400">Price:</span>

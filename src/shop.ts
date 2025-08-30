@@ -1,4 +1,4 @@
-const basePrices: Record<string, number> = { pla: 0.045, pbse: 0.145, abs: 0.295 };
+const basePrices: Record<string, number> = { pla: 0.055, pbse: 0.145, abs: 0.295 };
 const deliveryPrices: Record<string, number> = { standard: 0, fast: 2, express: 3.50 };
 const form = document.getElementById('shopForm') as HTMLFormElement;
 const totalCostSpan = document.getElementById('totalCost') as HTMLSpanElement;

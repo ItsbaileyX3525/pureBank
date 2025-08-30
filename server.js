@@ -7,6 +7,8 @@ import https from 'https';
 import http from 'http';
 import fs from 'fs';
 import 'dotenv/config';
+import session from 'express-session';
+import MySQLStore from 'express-mysql-session';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +55,7 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
     console.log('No SSL certificates found, using HTTP');
 }
 
-const port = useSSL ? 443 : 80;
+const port = useSSL ? 443 : 3000;
 
 const saltRounds = 10;
 
@@ -202,7 +204,7 @@ app.get('/api/user/:id/orders/active', (req, res) => {
     const userId = req.params.id;
     
     connection.query(
-        'SELECT * FROM orders WHERE user_id = ? AND fulfilled = FALSE ORDER BY created_at DESC',
+        'SELECT * FROM orders WHERE user_id = ? AND (status = "pending" OR status = "confirmed") ORDER BY created_at DESC',
         [userId],
         (err, results) => {
             if (err) {
@@ -218,7 +220,7 @@ app.get('/api/user/:id/orders/completed', (req, res) => {
     const userId = req.params.id;
     
     connection.query(
-        'SELECT * FROM orders WHERE user_id = ? AND fulfilled = TRUE ORDER BY created_at DESC',
+        'SELECT * FROM orders WHERE user_id = ? AND status = "completed" ORDER BY created_at DESC',
         [userId],
         (err, results) => {
             if (err) {
@@ -230,109 +232,188 @@ app.get('/api/user/:id/orders/completed', (req, res) => {
     );
 });
 
-app.get('/admin/orders', (req, res) => {
+// Add session configuration after app initialization
+const MySQLStoreSession = MySQLStore(session);
+const sessionStore = new MySQLStoreSession({
+    host: 'localhost',
+    user: 'adminDude',
+    password: process.env.DATABASE_PASSWORD,
+    database: 'orders'
+});
+
+app.use(session({
+    key: 'admin_session',
+    secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-this',
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24, // 24 hours
+        secure: useSSL, // Use secure cookies in production
+        httpOnly: true
+    }
+}));
+
+// Middleware to check admin authentication
+const requireAdmin = (req, res, next) => {
+    if (req.session && req.session.isAdmin) {
+        return next();
+    } else {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+};
+
+// Admin authentication endpoint
+app.post('/admin/auth', (req, res) => {
+    const { password } = req.body;
+    
+    // Store admin password in environment variable
+    const adminPassword = process.env.ADMIN_PASSWORD || 'FuckGhost44';
+    
+    if (password === adminPassword) {
+        req.session.isAdmin = true;
+        res.json({ success: true, message: 'Authentication successful' });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid password' });
+    }
+});
+
+// Admin logout endpoint
+app.post('/admin/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            res.status(500).json({ success: false, message: 'Could not log out' });
+        } else {
+            res.json({ success: true, message: 'Logged out successfully' });
+        }
+    });
+});
+
+// Check admin session status
+app.get('/admin/status', (req, res) => {
+    if (req.session && req.session.isAdmin) {
+        res.json({ success: true, isAuthenticated: true });
+    } else {
+        res.json({ success: true, isAuthenticated: false });
+    }
+});
+
+app.get('/admin/orders', requireAdmin, (req, res) => {
     connection.query(
-        `SELECT o.*, u.username 
-         FROM orders o 
-         LEFT JOIN users u ON o.user_id = u.id 
-         ORDER BY o.created_at DESC`,
+        'SELECT o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC',
         (err, results) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error fetching orders:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+            } else {
+                res.json({ success: true, orders: results });
             }
-            res.json({ success: true, orders: results || [] });
         }
     );
 });
 
-app.get('/admin/users', (req, res) => {
+app.get('/admin/users', requireAdmin, (req, res) => {
     connection.query(
         'SELECT id, username, profile_image_url, created_at FROM users ORDER BY created_at DESC',
         (err, results) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error fetching users:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+            } else {
+                res.json({ success: true, users: results });
             }
-            res.json({ success: true, users: results || [] });
         }
     );
 });
 
-app.post('/admin/orders/:id/confirm', (req, res) => {
+app.post('/admin/orders/:id/confirm', requireAdmin, (req, res) => {
     const orderId = req.params.id;
+    
     connection.query(
-        'UPDATE orders SET status = "confirmed" WHERE id = ?',
-        [orderId],
+        'UPDATE orders SET status = ?, fulfilled = ? WHERE id = ?',
+        ['confirmed', true, orderId],
         (err, results) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error confirming order:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+            } else if (results.affectedRows === 0) {
+                res.status(404).json({ success: false, message: 'Order not found' });
+            } else {
+                res.json({ success: true, message: 'Order confirmed successfully' });
             }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ success: false, error: 'Order not found' });
-            }
-            res.json({ success: true, message: 'Order confirmed successfully' });
         }
     );
 });
 
-app.post('/admin/orders/:id/complete', (req, res) => {
+app.post('/admin/orders/:id/complete', requireAdmin, (req, res) => {
     const orderId = req.params.id;
+    
     connection.query(
-        'UPDATE orders SET status = "completed" WHERE id = ?',
-        [orderId],
+        'UPDATE orders SET status = ?, fulfilled = ? WHERE id = ?',
+        ['completed', true, orderId],
         (err, results) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error completing order:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+            } else if (results.affectedRows === 0) {
+                res.status(404).json({ success: false, message: 'Order not found' });
+            } else {
+                res.json({ success: true, message: 'Order completed successfully' });
             }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ success: false, error: 'Order not found' });
-            }
-            res.json({ success: true, message: 'Order completed successfully' });
         }
     );
 });
 
-app.delete('/admin/orders/:id', (req, res) => {
+app.delete('/admin/orders/:id', requireAdmin, (req, res) => {
     const orderId = req.params.id;
+    
     connection.query(
         'DELETE FROM orders WHERE id = ?',
         [orderId],
         (err, results) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error deleting order:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+            } else if (results.affectedRows === 0) {
+                res.status(404).json({ success: false, message: 'Order not found' });
+            } else {
+                res.json({ success: true, message: 'Order deleted successfully' });
             }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ success: false, error: 'Order not found' });
-            }
-            res.json({ success: true, message: 'Order deleted successfully' });
         }
     );
 });
 
-app.delete('/admin/users/:id', (req, res) => {
+app.delete('/admin/users/:id', requireAdmin, (req, res) => {
     const userId = req.params.id;
     
-    connection.query('DELETE FROM orders WHERE user_id = ?', [userId], (err) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ success: false, error: 'Database error' });
-        }
-        
-        connection.query('DELETE FROM users WHERE id = ?', [userId], (err, results) => {
+    // First delete all orders for this user
+    connection.query(
+        'DELETE FROM orders WHERE user_id = ?',
+        [userId],
+        (err) => {
             if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ success: false, error: 'Database error' });
+                console.error('Error deleting user orders:', err);
+                res.status(500).json({ success: false, message: 'Database error' });
+                return;
             }
-            if (results.affectedRows === 0) {
-                return res.status(404).json({ success: false, error: 'User not found' });
-            }
-            res.json({ success: true, message: 'User and all associated orders deleted successfully' });
-        });
-    });
+            
+            // Then delete the user
+            connection.query(
+                'DELETE FROM users WHERE id = ?',
+                [userId],
+                (err, results) => {
+                    if (err) {
+                        console.error('Error deleting user:', err);
+                        res.status(500).json({ success: false, message: 'Database error' });
+                    } else if (results.affectedRows === 0) {
+                        res.status(404).json({ success: false, message: 'User not found' });
+                    } else {
+                        res.json({ success: true, message: 'User and all orders deleted successfully' });
+                    }
+                }
+            );
+        }
+    );
 });
 
 // Create and start the server

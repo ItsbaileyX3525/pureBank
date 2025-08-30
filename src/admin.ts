@@ -19,9 +19,35 @@ interface User {
 class AdminPanel {
   private currentTab = 'all';
   private currentFilter = '';
+  private isAuthenticated = false;
 
   constructor() {
+    this.init();
+  }
+
+  private async init(): Promise<void> {
+    await this.checkAuthStatus();
     this.bindEvents();
+  }
+
+  private async checkAuthStatus(): Promise<void> {
+    try {
+      const response = await fetch('/admin/status');
+      const data = await response.json();
+      
+      if (data.success && data.isAuthenticated) {
+        this.isAuthenticated = true;
+        this.showAdminPanel();
+        this.loadOrders();
+      } else {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+      this.isAuthenticated = false;
+      this.showAuthForm();
+    }
   }
 
   private bindEvents(): void {
@@ -44,19 +70,64 @@ class AdminPanel {
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
     const password = formData.get('admin-password') as string;
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    
+    // Show loading state
+    const originalText = submitButton.textContent;
+    submitButton.textContent = 'Authenticating...';
+    submitButton.disabled = true;
 
-    if (password === 'FuckGhost44') {
-      this.showAdminPanel();
-      this.loadOrders();
-    } else {
-      this.showError('Invalid admin password');
+    try {
+      const response = await fetch('/admin/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        this.isAuthenticated = true;
+        this.showAdminPanel();
+        this.loadOrders();
+        this.hideError();
+      } else {
+        this.showError(data.message || 'Invalid admin password');
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      this.showError('Authentication failed. Please try again.');
+    } finally {
+      submitButton.textContent = originalText;
+      submitButton.disabled = false;
     }
   }
 
-  private handleLogout(): void {
-    this.showAuthForm();
-    const passwordInput = document.getElementById('admin-password') as HTMLInputElement;
-    if (passwordInput) passwordInput.value = '';
+  private async handleLogout(): Promise<void> {
+    if (!confirm('Are you sure you want to logout?')) return;
+
+    try {
+      const response = await fetch('/admin/logout', {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        // Clear the password field
+        const passwordInput = document.getElementById('admin-password') as HTMLInputElement;
+        if (passwordInput) passwordInput.value = '';
+      } else {
+        this.showError('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      this.showError('Logout failed');
+    }
   }
 
   private handleSearch(e: Event): void {
@@ -107,11 +178,22 @@ class AdminPanel {
     if (errorDiv) {
       errorDiv.textContent = message;
       errorDiv.classList.remove('hidden');
-      setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+    }
+  }
+
+  private hideError(): void {
+    const errorDiv = document.getElementById('error-message');
+    if (errorDiv) {
+      errorDiv.classList.add('hidden');
     }
   }
 
   private async loadOrders(): Promise<void> {
+    if (!this.isAuthenticated) {
+      this.showAuthForm();
+      return;
+    }
+
     try {
       const loadingDiv = document.getElementById('orders-loading');
       const listDiv = document.getElementById('orders-list');
@@ -120,6 +202,13 @@ class AdminPanel {
       if (listDiv) listDiv.classList.add('hidden');
 
       const response = await fetch('/admin/orders');
+      
+      if (response.status === 401) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -128,11 +217,17 @@ class AdminPanel {
         this.showError('Failed to load orders');
       }
     } catch (error) {
+      console.error('Error loading orders:', error);
       this.showError('Error loading orders');
     }
   }
 
   private async loadUsers(): Promise<void> {
+    if (!this.isAuthenticated) {
+      this.showAuthForm();
+      return;
+    }
+
     try {
       const loadingDiv = document.getElementById('users-loading');
       const listDiv = document.getElementById('users-list');
@@ -141,6 +236,13 @@ class AdminPanel {
       if (listDiv) listDiv.classList.add('hidden');
 
       const response = await fetch('/admin/users');
+      
+      if (response.status === 401) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -149,6 +251,7 @@ class AdminPanel {
         this.showError('Failed to load users');
       }
     } catch (error) {
+      console.error('Error loading users:', error);
       this.showError('Error loading users');
     }
   }
@@ -341,6 +444,13 @@ class AdminPanel {
       const response = await fetch(`/admin/orders/${orderId}/confirm`, {
         method: 'POST'
       });
+
+      if (response.status === 401) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -360,6 +470,13 @@ class AdminPanel {
       const response = await fetch(`/admin/orders/${orderId}/complete`, {
         method: 'POST'
       });
+
+      if (response.status === 401) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -379,6 +496,7 @@ class AdminPanel {
       const response = await fetch(`/admin/orders/${orderId}`, {
         method: 'DELETE'
       });
+
       const data = await response.json();
 
       if (data.success) {
