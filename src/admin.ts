@@ -19,17 +19,73 @@ interface User {
 }
 
 class AdminPanel {
+  private bindAdminOrderForm(): void {
+    const form = document.getElementById('admin-create-order-form') as HTMLFormElement;
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const model = (document.getElementById('admin-order-model') as HTMLInputElement).value.trim();
+      const plastic = (document.getElementById('admin-order-plastic') as HTMLInputElement).value.trim();
+      const weight = parseInt((document.getElementById('admin-order-weight') as HTMLInputElement).value);
+      const delivery = (document.getElementById('admin-order-delivery') as HTMLInputElement).value.trim();
+      const shipping_location = (document.getElementById('admin-order-shipping-location') as HTMLInputElement).value.trim();
+      const amount = parseFloat((document.getElementById('admin-order-amount') as HTMLInputElement).value);
+      const description = (document.getElementById('admin-order-description') as HTMLInputElement).value.trim();
+      if (!model || !plastic || isNaN(weight) || !delivery || !shipping_location || isNaN(amount)) {
+        this.showError('Please fill in all required fields.');
+        return;
+      }
+      const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating...';
+      try {
+        const res = await fetch('/admin/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: 1, // Admin user (or set to a special admin user id)
+            model_name: model,
+            plastic,
+            weight,
+            delivery,
+            shipping_location,
+            price: amount,
+            amount,
+            fulfilled: false,
+            description: description || `Admin created order: ${model}`,
+            delivery_time: delivery,
+            status: 'pending',
+            discount_code: null
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          form.reset();
+          this.loadOrders();
+        } else {
+          this.showError(data.error || 'Failed to create order');
+        }
+      } catch (err) {
+        this.showError('Error creating order');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    });
+  }
   private currentTab = 'all';
   private currentFilter = '';
   private isAuthenticated = false;
 
   constructor() {
-    this.init();
+  this.init();
   }
 
   private async init(): Promise<void> {
-    await this.checkAuthStatus();
-    this.bindEvents();
+  await this.checkAuthStatus();
+  this.bindEvents();
+  this.bindAdminOrderForm();
   }
 
   private async checkAuthStatus(): Promise<void> {
@@ -451,7 +507,6 @@ class AdminPanel {
           ${order.status.toUpperCase()}
         </span>
       </div>
-      
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
           <p class="text-gray-400 text-sm">Description:</p>
@@ -459,7 +514,10 @@ class AdminPanel {
         </div>
         <div>
           <p class="text-gray-400 text-sm">Amount:</p>
-          <p class="text-white">£${order.amount}</p>
+          <div class="flex items-center gap-2">
+            <input type="number" step="0.01" min="0" value="${order.amount}" class="order-amount-input bg-gray-800 text-white px-2 py-1 rounded w-24" data-id="${order.id}" />
+            <button class="update-amount-btn bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded" data-id="${order.id}">Update</button>
+          </div>
           ${discount}
         </div>
         <div>
@@ -471,7 +529,6 @@ class AdminPanel {
           <p class="text-white">${formattedDate}</p>
         </div>
       </div>
-      
       <div class="flex gap-2 mt-4">
         ${order.status === 'pending' ? `
           <button class="confirm-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${order.id}">
@@ -527,10 +584,45 @@ class AdminPanel {
     const confirmBtn = element.querySelector('.confirm-btn');
     const completeBtn = element.querySelector('.complete-btn');
     const deleteBtn = element.querySelector('.delete-btn');
+    const updateAmountBtn = element.querySelector('.update-amount-btn') as HTMLButtonElement;
+    const amountInput = element.querySelector('.order-amount-input') as HTMLInputElement;
 
     confirmBtn?.addEventListener('click', () => this.confirmOrder(orderId));
     completeBtn?.addEventListener('click', () => this.completeOrder(orderId));
     deleteBtn?.addEventListener('click', () => this.deleteOrder(orderId));
+    updateAmountBtn?.addEventListener('click', () => {
+      if (!amountInput) return;
+      const newAmount = parseFloat(amountInput.value);
+      if (isNaN(newAmount) || newAmount < 0) {
+        this.showError('Please enter a valid amount.');
+        return;
+      }
+      this.updateOrderAmount(orderId, newAmount, updateAmountBtn);
+    });
+  }
+
+  private async updateOrderAmount(orderId: number, newAmount: number, btn: HTMLButtonElement): Promise<void> {
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Updating...';
+    try {
+      const response = await fetch(`/admin/orders/${orderId}/amount`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: newAmount })
+      });
+      const data = await response.json();
+      if (data.success) {
+        this.loadOrders();
+      } else {
+        this.showError(data.error || 'Failed to update amount');
+      }
+    } catch (error) {
+      this.showError('Error updating amount');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 
   private bindUserActions(element: HTMLElement, userId: number): void {

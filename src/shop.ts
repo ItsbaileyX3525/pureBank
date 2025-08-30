@@ -201,6 +201,7 @@ form.addEventListener('submit', async function(e) {
   }
   totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
   let fulfillmentType = (collectionInput && collectionInput.checked) ? 'Collection' : 'Delivery';
+  const finalAmount = parseFloat(displayCost.toFixed(2));
   const submitData = {
     user_id: parseInt(userId),
     model_name: orderData.model as string,
@@ -208,10 +209,10 @@ form.addEventListener('submit', async function(e) {
     plastic: letBailey.checked ? 'pla' : plastic,
     delivery: delivery,
     shipping_location: shippingLocation,
-    price: parseFloat(displayCost.toFixed(2)),
+    price: finalAmount,
     fulfilled: false,
     description: `3D Print: ${orderData.model as string} - ${letBailey.checked ? 'pla' : plastic} - ${letBailey.checked ? 'Let Bailey handle weight' : weight + 'g'} (${fulfillmentType})`,
-    amount: parseFloat(displayCost.toFixed(2)),
+    amount: finalAmount,
     delivery_time: delivery,
     status: 'pending',
     discount_code: code || null

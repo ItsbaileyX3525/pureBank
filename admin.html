@@ -100,12 +100,24 @@
         </div>
       </div>
 
+
     <div id="orders-section" class="tab-content">
       <div class="mb-4">
         <input type="text" id="search-input" placeholder="Search orders by username, order ID, or description..."
                class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400">
       </div>
-      
+
+      <form id="admin-create-order-form" class="flex flex-wrap gap-2 items-end mb-6 bg-gray-900 p-4 rounded-lg shadow">
+        <input type="text" id="admin-order-model" placeholder="Model Name" required class="px-2 py-1 rounded bg-gray-700 text-white">
+        <input type="text" id="admin-order-plastic" placeholder="Plastic Type" required class="px-2 py-1 rounded bg-gray-700 text-white">
+        <input type="number" id="admin-order-weight" placeholder="Weight (g)" required class="px-2 py-1 rounded bg-gray-700 text-white" min="1">
+        <input type="text" id="admin-order-delivery" placeholder="Delivery Type" required class="px-2 py-1 rounded bg-gray-700 text-white">
+        <input type="text" id="admin-order-shipping-location" placeholder="Shipping Location" required class="px-2 py-1 rounded bg-gray-700 text-white">
+        <input type="number" id="admin-order-amount" placeholder="Amount (£)" required class="px-2 py-1 rounded bg-gray-700 text-white" min="0" step="0.01">
+        <input type="text" id="admin-order-description" placeholder="Description" class="px-2 py-1 rounded bg-gray-700 text-white">
+        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">Create Order</button>
+      </form>
+
       <div id="orders-loading" class="text-center py-8">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-400 mx-auto"></div>
         <p class="text-gray-400 mt-4">Loading orders...</p>

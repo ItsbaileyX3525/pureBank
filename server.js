@@ -408,6 +408,41 @@ app.get('/admin/status', (req, res) => {
     }
 });
 
+// Admin create order endpoint
+app.post('/admin/orders', requireAdmin, (req, res) => {
+    const { user_id, model_name, plastic, weight, delivery, shipping_location, price, amount, fulfilled, description, delivery_time, status, discount_code } = req.body;
+    // Default to Admin user if not provided
+    const uid = user_id || 1;
+    const orderData = [
+        uid,
+        model_name,
+        plastic,
+        weight,
+        delivery,
+        shipping_location,
+        price,
+        !!fulfilled,
+        description || '',
+        amount || price,
+        delivery_time || delivery,
+        status || 'pending',
+        null, // discount_code_id
+        0.00  // discount_applied
+    ];
+    // Insert order
+    connection.query(
+        'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, shipping_location, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        orderData,
+        (err, results) => {
+            if (err) {
+                console.error('Admin order insert error:', err, '\nOrder data:', orderData);
+                return res.status(500).json({ success: false, error: 'Database error', details: err });
+            }
+            res.json({ success: true, orderId: results.insertId });
+        }
+    );
+});
+
 app.get('/admin/orders', requireAdmin, (req, res) => {
     connection.query(
         'SELECT o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC',
@@ -524,6 +559,21 @@ app.delete('/admin/users/:id', requireAdmin, (req, res) => {
             );
         }
     );
+});
+
+// Update order amount
+app.post('/admin/orders/:id/amount', async (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    const { amount } = req.body;
+    if (isNaN(orderId) || typeof amount !== 'number') {
+        return res.status(400).json({ success: false, error: 'Invalid input' });
+    }
+    connection.query('UPDATE orders SET amount = ?, price = ? WHERE id = ?', [amount, amount, orderId], (err, results) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: 'Database error' });
+        }
+        res.json({ success: true });
+    });
 });
 
 // Create and start the server
