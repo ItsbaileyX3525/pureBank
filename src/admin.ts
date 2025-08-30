@@ -518,6 +518,10 @@ class AdminPanel {
             <input type="number" step="0.01" min="0" value="${order.amount}" class="order-amount-input bg-gray-800 text-white px-2 py-1 rounded w-24" data-id="${order.id}" />
             <button class="update-amount-btn bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded" data-id="${order.id}">Update</button>
           </div>
+              <div class="flex items-center gap-2">
+                <input type="number" step="0.01" min="0" value="${order.discount_applied ?? 0}" class="order-discount-input bg-gray-800 text-green-300 px-2 py-1 rounded w-24" data-id="${order.id}" />
+                <button class="update-discount-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded" data-id="${order.id}">Update Discount</button>
+              </div>
           ${discount}
         </div>
         <div>
@@ -586,6 +590,8 @@ class AdminPanel {
     const deleteBtn = element.querySelector('.delete-btn');
     const updateAmountBtn = element.querySelector('.update-amount-btn') as HTMLButtonElement;
     const amountInput = element.querySelector('.order-amount-input') as HTMLInputElement;
+        const updateDiscountBtn = element.querySelector('.update-discount-btn') as HTMLButtonElement;
+        const discountInput = element.querySelector('.order-discount-input') as HTMLInputElement;
 
     confirmBtn?.addEventListener('click', () => this.confirmOrder(orderId));
     completeBtn?.addEventListener('click', () => this.completeOrder(orderId));
@@ -599,6 +605,39 @@ class AdminPanel {
       }
       this.updateOrderAmount(orderId, newAmount, updateAmountBtn);
     });
+        updateDiscountBtn?.addEventListener('click', async () => {
+          if (!discountInput) return;
+          const newDiscount = parseFloat(discountInput.value);
+          if (isNaN(newDiscount) || newDiscount < 0) {
+            alert('Please enter a valid discount amount (0 or greater).');
+            return;
+          }
+          updateDiscountBtn.disabled = true;
+          const originalText = updateDiscountBtn.textContent;
+          updateDiscountBtn.textContent = 'Updating...';
+          try {
+            const res = await fetch(`/admin/order/${orderId}/discount`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ discount_applied: newDiscount })
+            });
+            const data = await res.json();
+            if (data.success) {
+              updateDiscountBtn.textContent = 'Updated!';
+              setTimeout(() => {
+                updateDiscountBtn.textContent = originalText;
+              }, 1200);
+            } else {
+              alert(data.error || 'Failed to update discount.');
+              updateDiscountBtn.textContent = originalText;
+            }
+          } catch (e) {
+            alert('Network error updating discount.');
+            updateDiscountBtn.textContent = originalText;
+          } finally {
+            updateDiscountBtn.disabled = false;
+          }
+        });
   }
 
   private async updateOrderAmount(orderId: number, newAmount: number, btn: HTMLButtonElement): Promise<void> {

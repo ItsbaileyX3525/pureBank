@@ -561,6 +561,7 @@ app.delete('/admin/users/:id', requireAdmin, (req, res) => {
     );
 });
 
+
 // Update order amount
 app.post('/admin/orders/:id/amount', async (req, res) => {
     const orderId = parseInt(req.params.id, 10);
@@ -571,6 +572,24 @@ app.post('/admin/orders/:id/amount', async (req, res) => {
     connection.query('UPDATE orders SET amount = ?, price = ? WHERE id = ?', [amount, amount, orderId], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: 'Database error' });
+        }
+        res.json({ success: true });
+    });
+});
+
+// Admin: Update discount_applied for an order
+app.patch('/admin/order/:id/discount', requireAdmin, (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    const { discount_applied } = req.body;
+    if (isNaN(orderId) || typeof discount_applied !== 'number' || discount_applied < 0) {
+        return res.status(400).json({ success: false, error: 'Invalid input' });
+    }
+    connection.query('UPDATE orders SET discount_applied = ? WHERE id = ?', [discount_applied, orderId], (err, results) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: 'Database error' });
+        }
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
         }
         res.json({ success: true });
     });
