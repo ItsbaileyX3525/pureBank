@@ -3,6 +3,9 @@ const deliveryPrices: Record<string, number> = { standard: 0, fast: 2, express: 
 const form = document.getElementById('shopForm') as HTMLFormElement;
 const totalCostSpan = document.getElementById('totalCost') as HTMLSpanElement;
 const letBailey = document.getElementById('letBailey') as HTMLInputElement;
+const discountInput = document.getElementById('discount_code') as HTMLInputElement;
+let discountAmount = 0;
+let discountType: 'percent' | 'fixed' | null = null;
 
 function updateCost() {
   let cost = 0;
@@ -14,9 +17,18 @@ function updateCost() {
     const plastic = form.plastic.value;
     cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery];
   }
-  totalCostSpan.textContent = `£${cost.toFixed(2)}`;
+  let displayCost = cost;
+  if (discountAmount && discountType) {
+    if (discountType === 'percent') {
+      displayCost = cost * (1 - discountAmount / 100);
+    } else {
+      displayCost = Math.max(0, cost - discountAmount);
+    }
+  }
+  totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
 }
 
+// Discount code validation will be handled on submit only
 form.addEventListener('input', updateCost);
 
 letBailey.addEventListener('change', function() {
@@ -27,7 +39,7 @@ letBailey.addEventListener('change', function() {
 
 form.addEventListener('submit', async function(e) {
   e.preventDefault();
-  
+
   const userId = localStorage.getItem('userId');
   if (!userId) {
     alert("Please log in to place an order");
@@ -37,13 +49,37 @@ form.addEventListener('submit', async function(e) {
 
   const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
   const originalButtonText = submitButton.textContent;
-  
   submitButton.disabled = true;
   submitButton.textContent = 'Placing Order...';
 
+  // Validate discount code if present
+  let code = discountInput?.value.trim();
+  discountAmount = 0;
+  discountType = null;
+  if (code) {
+    try {
+      const res = await fetch(`/api/discount/${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (data.success && data.discount) {
+        discountAmount = parseFloat(data.discount.discount_value);
+        discountType = data.discount.discount_type;
+      } else {
+        alert('Invalid or expired discount code');
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+        return;
+      }
+    } catch (e) {
+      alert('Could not validate discount code');
+      submitButton.disabled = false;
+      submitButton.textContent = originalButtonText;
+      return;
+    }
+  }
+
   const formData = new FormData(form);
   const orderData = Object.fromEntries(formData);
-  
+
   let cost = 0;
   const delivery = orderData.delivery as string;
   if (letBailey.checked) {
@@ -54,18 +90,29 @@ form.addEventListener('submit', async function(e) {
     cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery];
   }
 
+  let displayCost = cost;
+  if (discountAmount && discountType) {
+    if (discountType === 'percent') {
+      displayCost = cost * (1 - discountAmount / 100);
+    } else {
+      displayCost = Math.max(0, cost - discountAmount);
+    }
+  }
+  totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
+
   const submitData = {
     user_id: parseInt(userId),
     model_name: orderData.model as string,
     weight: letBailey.checked ? 0 : parseInt(orderData.weight as string),
     plastic: letBailey.checked ? 'pla' : orderData.plastic as string,
     delivery: delivery,
-    price: parseFloat(cost.toFixed(2)),
+    price: parseFloat(displayCost.toFixed(2)),
     fulfilled: false,
     description: `3D Print: ${orderData.model as string} - ${letBailey.checked ? 'pla' : orderData.plastic as string} - ${letBailey.checked ? 'Let Bailey handle weight' : orderData.weight + 'g'}`,
-    amount: parseFloat(cost.toFixed(2)),
+    amount: parseFloat(displayCost.toFixed(2)),
     delivery_time: delivery,
-    status: 'pending'
+    status: 'pending',
+    discount_code: code || null
   };
 
   console.log('Submitting order:', submitData);
@@ -89,10 +136,8 @@ form.addEventListener('submit', async function(e) {
       submitButton.textContent = 'Order Placed!';
       submitButton.classList.remove('bg-violet-500', 'hover:bg-violet-600');
       submitButton.classList.add('bg-green-500');
-      
       form.reset();
       updateCost();
-      
       setTimeout(() => {
         window.location.href = '/account.html';
       }, 1000);

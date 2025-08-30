@@ -7,6 +7,8 @@ interface Order {
   delivery_time: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   created_at: string;
+  discount_code_id?: number | null;
+  discount_applied?: number;
 }
 
 interface User {
@@ -55,6 +57,7 @@ class AdminPanel {
     const logoutBtn = document.getElementById('logout-btn');
     const searchInput = document.getElementById('search-input');
     const tabButtons = document.querySelectorAll('.tab-button');
+    const discountsBtn = document.getElementById('discounts-btn');
 
     authForm?.addEventListener('submit', this.handleAuth.bind(this));
     logoutBtn?.addEventListener('click', this.handleLogout.bind(this));
@@ -63,6 +66,105 @@ class AdminPanel {
     tabButtons.forEach(btn => {
       btn.addEventListener('click', this.handleTabChange.bind(this));
     });
+
+    // Discount tab logic
+    if (discountsBtn) {
+      discountsBtn.addEventListener('click', () => {
+        this.currentTab = 'discounts';
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById('discounts-section')?.classList.remove('hidden');
+        this.loadDiscounts();
+      });
+    }
+
+    const discountForm = document.getElementById('discount-form') as HTMLFormElement;
+    if (discountForm) {
+      discountForm.addEventListener('submit', this.handleDiscountForm.bind(this));
+    }
+  }
+
+  private async loadDiscounts(): Promise<void> {
+    const listDiv = document.getElementById('discounts-list');
+    if (!listDiv) return;
+    listDiv.innerHTML = '<div class="text-gray-400">Loading...</div>';
+    try {
+      const res = await fetch('/admin/discounts');
+      const data = await res.json();
+      if (data.success) {
+        listDiv.innerHTML = '';
+        if (!data.discounts.length) {
+          listDiv.innerHTML = '<div class="text-gray-400">No discounts found.</div>';
+        } else {
+          data.discounts.forEach((d: any) => {
+            const div = document.createElement('div');
+            div.className = 'bg-gray-800 rounded p-3 flex justify-between items-center';
+            div.innerHTML = `
+              <div>
+                <span class="font-bold text-white">${d.code}</span>
+                <span class="ml-2 text-gray-400">${d.description || ''}</span>
+                <span class="ml-2 text-violet-400">${d.discount_type === 'percent' ? d.discount_value + '%' : '£' + d.discount_value}</span>
+                <span class="ml-2 text-blue-400">Uses: ${d.uses ?? 0}/${d.max_uses === -1 ? '∞' : d.max_uses}</span>
+                ${d.active ? '<span class="ml-2 text-green-400">Active</span>' : '<span class="ml-2 text-red-400">Inactive</span>'}
+                ${d.expires_at ? `<span class="ml-2 text-yellow-400">Expires: ${new Date(d.expires_at).toLocaleString()}</span>` : ''}
+              </div>
+              <button class="delete-discount-btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded" data-id="${d.id}">Delete</button>
+            `;
+            div.querySelector('.delete-discount-btn')?.addEventListener('click', () => this.deleteDiscount(d.id));
+            listDiv.appendChild(div);
+          });
+        }
+      } else {
+        listDiv.innerHTML = '<div class="text-red-400">Failed to load discounts.</div>';
+      }
+    } catch (e) {
+      listDiv.innerHTML = '<div class="text-red-400">Error loading discounts.</div>';
+    }
+  }
+
+  private async handleDiscountForm(e: Event): Promise<void> {
+    e.preventDefault();
+    const code = (document.getElementById('discount-code') as HTMLInputElement).value.trim();
+    const description = (document.getElementById('discount-desc') as HTMLInputElement).value.trim();
+    const discount_type = (document.getElementById('discount-type') as HTMLSelectElement).value;
+    const discount_value = parseFloat((document.getElementById('discount-value') as HTMLInputElement).value);
+    const max_uses = parseInt((document.getElementById('discount-max-uses') as HTMLInputElement).value);
+    const expires_at = (document.getElementById('discount-expires') as HTMLInputElement).value || null;
+    const active = (document.getElementById('discount-active') as HTMLInputElement).checked;
+    if (!code || !discount_type || isNaN(discount_value) || isNaN(max_uses)) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    try {
+      const res = await fetch('/admin/discounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, description, discount_type, discount_value, active, expires_at, max_uses })
+      });
+      const data = await res.json();
+      if (data.success) {
+        (e.target as HTMLFormElement).reset();
+        this.loadDiscounts();
+      } else {
+        alert(data.error || 'Failed to create discount');
+      }
+    } catch (err) {
+      alert('Error creating discount');
+    }
+  }
+
+  private async deleteDiscount(id: number): Promise<void> {
+    if (!confirm('Delete this discount code?')) return;
+    try {
+      const res = await fetch(`/admin/discounts/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        this.loadDiscounts();
+      } else {
+        alert('Failed to delete discount');
+      }
+    } catch (e) {
+      alert('Error deleting discount');
+    }
   }
 
   private async handleAuth(e: Event): Promise<void> {
@@ -337,6 +439,7 @@ class AdminPanel {
     
     const statusColor = this.getStatusColor(order.status);
     const formattedDate = new Date(order.created_at).toLocaleDateString();
+    const discount = order.discount_applied && order.discount_applied > 0 ? `<div class='text-green-400'>Discount applied: -£${order.discount_applied.toFixed(2)}</div>` : '';
     
     orderDiv.innerHTML = `
       <div class="flex justify-between items-start mb-4">
@@ -356,7 +459,8 @@ class AdminPanel {
         </div>
         <div>
           <p class="text-gray-400 text-sm">Amount:</p>
-          <p class="text-white">$${order.amount}</p>
+          <p class="text-white">£${order.amount}</p>
+          ${discount}
         </div>
         <div>
           <p class="text-gray-400 text-sm">Delivery Time:</p>

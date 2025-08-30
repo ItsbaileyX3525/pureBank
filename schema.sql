@@ -9,6 +9,20 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+CREATE TABLE IF NOT EXISTS discount_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    discount_type ENUM('percent', 'fixed') NOT NULL DEFAULT 'percent',
+    discount_value DECIMAL(10,2) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    expires_at DATETIME DEFAULT NULL,
+    max_uses INT NOT NULL DEFAULT -1,
+    uses INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -23,5 +37,8 @@ CREATE TABLE IF NOT EXISTS orders (
     description TEXT,
     amount DECIMAL(10,2),
     delivery_time VARCHAR(100),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    discount_code_id INT DEFAULT NULL,
+    discount_applied DECIMAL(10,2) DEFAULT 0.00,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (discount_code_id) REFERENCES discount_codes(id)
 );

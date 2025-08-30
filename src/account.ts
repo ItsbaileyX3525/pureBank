@@ -1,3 +1,4 @@
+
 interface User {
     id: number;
     username: string;
@@ -16,6 +17,8 @@ interface Order {
     fulfilled: boolean;
     status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
     created_at: string;
+    discount_code_id?: number | null;
+    discount_applied?: number;
 }
 
 class AccountPage {
@@ -196,8 +199,43 @@ class AccountPage {
     private async displayAllOrders() {
         const container = document.getElementById('all-orders');
         if (!container) return;
-
         container.innerHTML = this.renderOrders(this.orders);
+    }
+
+    private renderOrders(orders: Order[]): string {
+        if (!orders.length) {
+            return `<div class="text-center text-gray-400 py-8">No orders found.</div>`;
+        }
+        return orders.map(order => {
+            const discount = order.discount_applied && order.discount_applied > 0 ? `<div class='text-green-400'>Discount applied: -£${order.discount_applied.toFixed(2)}</div>` : '';
+            return `
+                <div class="order-card bg-gray-700 rounded-lg p-6 mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <span class="font-semibold text-white">Order #${order.id}</span>
+                            <span class="ml-2 text-gray-400 text-xs">${new Date(order.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-sm font-medium ${this.getStatusColor(order.status)}">
+                            ${order.status.toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="text-white mb-2">${order.model_name} (${order.plastic}, ${order.weight}g)</div>
+                    <div class="text-gray-300 mb-2">Delivery: ${order.delivery}</div>
+                    <div class="text-gray-300 mb-2">Price: £${order.price.toFixed(2)}</div>
+                    ${discount}
+                </div>
+            `;
+        }).join('');
+    }
+
+    private getStatusColor(status: string): string {
+        switch (status) {
+            case 'pending': return 'bg-yellow-500 text-yellow-100';
+            case 'confirmed': return 'bg-green-500 text-green-100';
+            case 'completed': return 'bg-blue-500 text-blue-100';
+            case 'cancelled': return 'bg-red-500 text-red-100';
+            default: return 'bg-gray-500 text-gray-100';
+        }
     }
 
     private async displayActiveOrders() {
@@ -264,93 +302,11 @@ class AccountPage {
         }
     }
 
-    private renderOrders(orders: Order[]): string {
-        if (orders.length === 0) {
-            return `
-                <div class="text-center py-12 text-gray-400">
-                    <div class="text-6xl mb-4">📦</div>
-                    <h3 class="text-xl font-semibold text-white mb-2">No orders yet</h3>
-                    <p class="mb-6">You haven't placed any 3D printing orders yet.</p>
-                    <a href="/shop.html" class="bg-violet-500 hover:bg-violet-600 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-block">
-                        Create Your First Order
-                    </a>
-                </div>
-            `;
-        }
-
-        return orders.map(order => this.renderOrderCard(order)).join('');
-    }
-
-    private renderOrderCard(order: Order): string {
-        // Use status instead of fulfilled for status badge
-        let statusBadge = '';
-        if (order.status === 'completed') {
-            statusBadge = '<span class="bg-green-500 text-green-100 px-2 py-1 rounded-full text-xs font-medium">Completed</span>';
-        } else if (order.status === 'confirmed') {
-            statusBadge = '<span class="bg-blue-500 text-blue-100 px-2 py-1 rounded-full text-xs font-medium">Confirmed</span>';
-        } else {
-            statusBadge = '<span class="bg-yellow-500 text-yellow-100 px-2 py-1 rounded-full text-xs font-medium">Pending</span>';
-        }
-
-        const formattedDate = new Date(order.created_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-
-        // Handle all delivery types
-        let deliveryLabel = '';
-        if (order.delivery === 'fast') deliveryLabel = 'Fast';
-        else if (order.delivery === 'express') deliveryLabel = 'Express';
-        else deliveryLabel = 'Standard';
-
-        // Use status for border color
-        let borderColor = '';
-        if (order.status === 'completed') borderColor = 'border-green-500';
-        else if (order.status === 'confirmed') borderColor = 'border-blue-500';
-        else borderColor = 'border-yellow-500';
-
-        return `
-            <div class="order-card bg-gray-700 rounded-lg p-4 border-l-4 ${borderColor} hover:bg-gray-600 transition-all duration-200">
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="text-lg font-semibold text-white">${order.model_name}</h3>
-                        <p class="text-gray-400 text-sm">Order #${order.id}</p>
-                    </div>
-                    ${statusBadge}
-                </div>
-                
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-400">Material:</span>
-                        <p class="text-white font-medium">${order.plastic.toUpperCase()}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Weight:</span>
-                        <p class="text-white font-medium">${order.weight}g</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Delivery:</span>
-                        <p class="text-white font-medium">${deliveryLabel}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Price:</span>
-                        <p class="text-white font-medium">£${order.price.toFixed(2)}</p>
-                    </div>
-                </div>
-                
-                <div class="mt-3 pt-3 border-t border-gray-600 flex justify-between items-center">
-                    <span class="text-gray-400 text-sm">Ordered on ${formattedDate}</span>
-                    <button class="text-violet-400 hover:text-violet-300 text-sm font-medium transition-colors">
-                        View Details
-                    </button>
-                </div>
-            </div>
-        `;
-    }
+    // Removed old renderOrders, replaced by new version above supporting discount display
 
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
     new AccountPage();
 });

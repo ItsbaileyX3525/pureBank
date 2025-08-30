@@ -112,6 +112,48 @@ app.post('/signin', (req, res) => {
     });
 });
 
+// Admin: Get all discount codes
+app.get('/admin/discounts', (req, res) => {
+    connection.query('SELECT * FROM discount_codes ORDER BY created_at DESC', [], (err, results) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: 'Database error', details: err });
+        }
+        res.json({ success: true, discounts: results });
+    });
+});
+
+// Admin: Create a new discount code
+app.post('/admin/discounts', (req, res) => {
+    const { code, description, discount_type, discount_value, active, expires_at, max_uses } = req.body;
+    if (!code || !discount_type || discount_value === undefined) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+    connection.query(
+        'INSERT INTO discount_codes (code, description, discount_type, discount_value, active, expires_at, max_uses) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [code, description || '', discount_type, discount_value, active !== undefined ? !!active : true, expires_at || null, max_uses !== undefined ? parseInt(max_uses) : -1],
+        (err, results) => {
+            if (err) {
+                if (err.code === 'ER_DUP_ENTRY') {
+                    return res.status(409).json({ success: false, error: 'Discount code already exists' });
+                }
+                return res.status(500).json({ success: false, error: 'Database error', details: err });
+            }
+            res.json({ success: true, id: results.insertId });
+        }
+    );
+});
+
+// Admin: Delete a discount code
+app.delete('/admin/discounts/:id', (req, res) => {
+    const id = req.params.id;
+    connection.query('DELETE FROM discount_codes WHERE id = ?', [id], (err, results) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: 'Database error', details: err });
+        }
+        res.json({ success: true });
+    });
+});
+
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 
@@ -148,21 +190,89 @@ app.post('/login', (req, res) => {
     );
 });
 
-app.post('/submit', (req, res) => {
-    const { user_id, model_name, weight, plastic, delivery, price, fulfilled, description, amount, delivery_time, status } = req.body;
-    if (!user_id || !model_name || weight === undefined || !plastic || !delivery || price === undefined) {
-        return res.status(400).json({ success: false, error: 'Missing required order fields' });
-    }
+
+// Validate discount code (check usage limit)
+app.get('/api/discount/:code', (req, res) => {
+    const code = req.params.code;
     connection.query(
-        'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, price, fulfilled, description, amount, delivery_time, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [user_id, model_name, plastic, weight, delivery, price, !!fulfilled, description || '', amount || price, delivery_time || delivery, status || 'pending'],
+        'SELECT * FROM discount_codes WHERE code = ? AND active = TRUE AND (expires_at IS NULL OR expires_at > NOW())',
+        [code],
         (err, results) => {
             if (err) {
                 return res.status(500).json({ success: false, error: 'Database error', details: err });
             }
-            res.json({ success: true, orderId: results.insertId });
+            if (!results || results.length === 0) {
+                return res.json({ success: false, error: 'Invalid or expired code' });
+            }
+            const discount = results[0];
+            if (discount.max_uses !== -1 && discount.uses >= discount.max_uses) {
+                return res.json({ success: false, error: 'Discount code usage limit reached' });
+            }
+            res.json({ success: true, discount });
         }
     );
+});
+
+// Order submission with discount code
+app.post('/submit', (req, res) => {
+    const { user_id, model_name, weight, plastic, delivery, price, fulfilled, description, amount, delivery_time, status, discount_code } = req.body;
+    if (!user_id || !model_name || weight === undefined || !plastic || !delivery || price === undefined) {
+        return res.status(400).json({ success: false, error: 'Missing required order fields' });
+    }
+
+    function insertOrder(discount_code_id = null, discount_applied = 0, incrementDiscount = false) {
+        const orderData = [user_id, model_name, plastic, weight, delivery, price, !!fulfilled, description || '', amount || price, delivery_time || delivery, status || 'pending', discount_code_id, discount_applied];
+        connection.query(
+            'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            orderData,
+            (err, results) => {
+                if (err) {
+                    console.error('Order insert error:', err, '\nOrder data:', orderData);
+                    return res.status(500).json({ success: false, error: 'Database error', details: err });
+                }
+                if (incrementDiscount && discount_code_id) {
+                    connection.query('UPDATE discount_codes SET uses = uses + 1 WHERE id = ?', [discount_code_id], (err2) => {
+                        if (err2) {
+                            console.error('Failed to increment discount uses:', err2, 'for discount_code_id:', discount_code_id);
+                        }
+                    });
+                }
+                res.json({ success: true, orderId: results.insertId });
+            }
+        );
+    }
+
+    if (discount_code) {
+        connection.query(
+            'SELECT * FROM discount_codes WHERE code = ? AND active = TRUE AND (expires_at IS NULL OR expires_at > NOW())',
+            [discount_code],
+            (err, results) => {
+                if (err) {
+                    return res.status(500).json({ success: false, error: 'Database error', details: err });
+                }
+                if (!results || results.length === 0) {
+                    // Invalid code, insert order without discount
+                    insertOrder();
+                } else {
+                    const discount = results[0];
+                    if (discount.max_uses !== -1 && discount.uses >= discount.max_uses) {
+                        // Usage limit reached, insert order without discount
+                        insertOrder();
+                    } else {
+                        let discount_applied = 0;
+                        if (discount.discount_type === 'percent') {
+                            discount_applied = price * (discount.discount_value / 100);
+                        } else {
+                            discount_applied = discount.discount_value;
+                        }
+                        insertOrder(discount.id, discount_applied, true);
+                    }
+                }
+            }
+        );
+    } else {
+        insertOrder();
+    }
 });
 
 app.get('/api/user/:id', (req, res) => {
