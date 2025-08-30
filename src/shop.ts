@@ -1,22 +1,46 @@
 const basePrices: Record<string, number> = { pla: 0.055, pbse: 0.145, abs: 0.295 };
 const deliveryPrices: Record<string, number> = { standard: 0, fast: 2, express: 3.50 };
+
+const shippingLocationPrices: Record<string, number> = {
+  Barrow: 0,
+  Roose: 1.5,
+  Askam: 4,
+  Dalton: 4.6,
+  Ulverston: 6
+};
+const collectionInput = document.getElementById('collection') as HTMLInputElement;
 const form = document.getElementById('shopForm') as HTMLFormElement;
 const totalCostSpan = document.getElementById('totalCost') as HTMLSpanElement;
 const letBailey = document.getElementById('letBailey') as HTMLInputElement;
 const discountInput = document.getElementById('discount_code') as HTMLInputElement;
+const shippingLocationInput = document.getElementById('shipping_location') as HTMLSelectElement;
 let discountAmount = 0;
 let discountType: 'percent' | 'fixed' | null = null;
 
 function updateCost() {
   let cost = 0;
   const delivery = form.delivery.value;
-  if (letBailey.checked) {
-    cost = deliveryPrices[delivery];
+  let shippingLocation = shippingLocationInput.value;
+  let shippingCost = shippingLocationPrices[shippingLocation] || 0;
+
+  // If both are checked, cost = 0
+  if (letBailey.checked && collectionInput && collectionInput.checked) {
+    cost = 0;
+  } else if (collectionInput && collectionInput.checked) {
+    shippingCost = 0;
+    shippingLocation = 'Collection';
+    // Only count weight and plastic, ignore delivery and shipping
+    const weight = parseInt(form.weight.value) || 0;
+    const plastic = form.plastic.value;
+    cost = (weight * (basePrices[plastic] || 0.05));
+  } else if (letBailey.checked) {
+    cost = deliveryPrices[delivery] + shippingCost;
   } else {
     const weight = parseInt(form.weight.value) || 0;
     const plastic = form.plastic.value;
-    cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery];
+    cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery] + shippingCost;
   }
+
   let displayCost = cost;
   if (discountAmount && discountType) {
     if (discountType === 'percent') {
@@ -30,12 +54,21 @@ function updateCost() {
 
 // Discount code validation will be handled on submit only
 form.addEventListener('input', updateCost);
+if (collectionInput) collectionInput.addEventListener('change', updateCost);
 
 letBailey.addEventListener('change', function() {
-  form.weight.disabled = letBailey.checked;
-  form.plastic.disabled = letBailey.checked;
+  form.weight.disabled = letBailey.checked || (collectionInput && collectionInput.checked);
+  form.plastic.disabled = letBailey.checked || (collectionInput && collectionInput.checked);
   updateCost();
 });
+
+if (collectionInput) {
+  collectionInput.addEventListener('change', function() {
+    form.weight.disabled = letBailey.checked || collectionInput.checked;
+    form.plastic.disabled = letBailey.checked || collectionInput.checked;
+    updateCost();
+  });
+}
 
 form.addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -79,15 +112,21 @@ form.addEventListener('submit', async function(e) {
 
   const formData = new FormData(form);
   const orderData = Object.fromEntries(formData);
+  let shippingLocation = orderData.shipping_location as string;
+  if (collectionInput && collectionInput.checked) {
+    shippingLocation = 'Collection';
+  }
 
   let cost = 0;
   const delivery = orderData.delivery as string;
+  let shippingCost = shippingLocationPrices[shippingLocation] || 0;
+  if (shippingLocation === 'Collection') shippingCost = 0;
   if (letBailey.checked) {
-    cost = deliveryPrices[delivery];
+    cost = deliveryPrices[delivery] + shippingCost;
   } else {
     const weight = parseInt(orderData.weight as string) || 0;
     const plastic = orderData.plastic as string;
-    cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery];
+    cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery] + shippingCost;
   }
 
   let displayCost = cost;
@@ -98,7 +137,7 @@ form.addEventListener('submit', async function(e) {
       displayCost = Math.max(0, cost - discountAmount);
     }
   }
-  totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
+  totalCostSpan.textContent = `£${displayCost}` + (discountAmount ? ` (discount applied)` : '');
 
   const submitData = {
     user_id: parseInt(userId),
@@ -106,6 +145,7 @@ form.addEventListener('submit', async function(e) {
     weight: letBailey.checked ? 0 : parseInt(orderData.weight as string),
     plastic: letBailey.checked ? 'pla' : orderData.plastic as string,
     delivery: delivery,
+    shipping_location: shippingLocation,
     price: parseFloat(displayCost.toFixed(2)),
     fulfilled: false,
     description: `3D Print: ${orderData.model as string} - ${letBailey.checked ? 'pla' : orderData.plastic as string} - ${letBailey.checked ? 'Let Bailey handle weight' : orderData.weight + 'g'}`,

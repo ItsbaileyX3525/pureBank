@@ -215,15 +215,15 @@ app.get('/api/discount/:code', (req, res) => {
 
 // Order submission with discount code
 app.post('/submit', (req, res) => {
-    const { user_id, model_name, weight, plastic, delivery, price, fulfilled, description, amount, delivery_time, status, discount_code } = req.body;
-    if (!user_id || !model_name || weight === undefined || !plastic || !delivery || price === undefined) {
+    const { user_id, model_name, weight, plastic, delivery, shipping_location, price, fulfilled, description, amount, delivery_time, status, discount_code } = req.body;
+    if (!user_id || !model_name || weight === undefined || !plastic || !delivery || !shipping_location || price === undefined) {
         return res.status(400).json({ success: false, error: 'Missing required order fields' });
     }
 
     function insertOrder(discount_code_id = null, discount_applied = 0, incrementDiscount = false) {
-        const orderData = [user_id, model_name, plastic, weight, delivery, price, !!fulfilled, description || '', amount || price, delivery_time || delivery, status || 'pending', discount_code_id, discount_applied];
+        const orderData = [user_id, model_name, plastic, weight, delivery, shipping_location, price, !!fulfilled, description || '', amount || price, delivery_time || delivery, status || 'pending', discount_code_id, discount_applied];
         connection.query(
-            'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, shipping_location, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             orderData,
             (err, results) => {
                 if (err) {

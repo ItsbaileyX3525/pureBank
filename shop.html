@@ -54,22 +54,36 @@
       <label class="flex flex-col">
         <span class="mb-1">Plastic type</span>
   <select name="plastic" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
-          <option value="pla">PLA Basic+ (default)</option>
-          <option value="pbse">PBSE (+£0.10/g)</option>
-          <option value="abs">ABS (+£0.15/g)</option>
-        </select>
-      </label>
-      <label class="flex flex-col">
-        <span class="mb-1">Delivery time frame</span>
-  <select name="delivery" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
-          <option value="standard">Whenever (1-7 days, FREE)</option>
-          <option value="fast">Fast (1-2 days, +£2)</option>
-          <option value="express">Express (Same day, +£3.50)</option>
+          <option value="pla">PLA Basic+ (default) £0.05/g</option>
+          <option value="pbse">PBSE £0.14/g</option>
+          <option value="abs">ABS £0.29/g</option>
         </select>
       </label>
       <div class="flex items-center gap-2">
         <input type="checkbox" id="letBailey" name="letBailey" class="w-4 h-4">
         <label for="letBailey" class="select-none cursor-pointer">Let Bailey find out (ignore weight and plastic type)</label>
+      </div>
+      <label class="flex flex-col">
+        <span class="mb-1">Shipping location</span>
+        <select name="shipping_location" id="shipping_location" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
+          <option value="Barrow">Barrow (Free)</option>
+          <option value="Roose">Roose (+£1.50)</option>
+          <option value="Askam">Askam (+£4)</option>
+          <option value="Dalton">Dalton (+£4.60)</option>
+          <option value="Ulverston">Ulverston (+£6)</option>
+        </select>
+      </label>
+      <label class="flex flex-col">
+        <span class="mb-1">Delivery time frame</span>
+        <select name="delivery" required class="rounded px-2 py-1 text-black bg-gray-200 focus:bg-white focus:outline-violet-400 transition-colors">
+          <option value="standard">Whenever (1-7 days, FREE)</option>
+          <option value="fast">Fast (1-2 days, +£2)</option>
+          <option value="express">Express (Same day, +£3.50)</option>
+        </select>
+      </label>
+      <div class="flex items-center gap-2 mb-2">
+        <input type="checkbox" id="collection" name="collection" class="w-4 h-4">
+        <label for="collection" class="select-none cursor-pointer">I will collect in person (no delivery fee)</label>
       </div>
       <label class="flex flex-col">
         <span class="mb-1">Discount code (optional)</span>
