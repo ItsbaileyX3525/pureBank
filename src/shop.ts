@@ -1,6 +1,6 @@
+
 const basePrices: Record<string, number> = { pla: 0.055, pbse: 0.145, abs: 0.295 };
 const deliveryPrices: Record<string, number> = { standard: 0, fast: 2, express: 3.50 };
-
 const shippingLocationPrices: Record<string, number> = {
   Barrow: 0,
   Roose: 1.5,
@@ -17,19 +17,63 @@ const shippingLocationInput = document.getElementById('shipping_location') as HT
 let discountAmount = 0;
 let discountType: 'percent' | 'fixed' | null = null;
 
+function showSuccess(message: string) {
+  let el = document.getElementById('custom-success');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'custom-success';
+    el.style.position = 'fixed';
+    el.style.top = '20px';
+    el.style.right = '20px';
+    el.style.background = '#22c55e';
+    el.style.color = '#fff';
+    el.style.padding = '12px 24px';
+    el.style.borderRadius = '8px';
+    el.style.zIndex = '9999';
+    el.style.fontWeight = 'bold';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.style.display = 'block';
+  setTimeout(() => {
+    el!.style.display = 'none';
+  }, 2500);
+}
+
+function showError(message: string) {
+  let el = document.getElementById('custom-error');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'custom-error';
+    el.style.position = 'fixed';
+    el.style.top = '20px';
+    el.style.right = '20px';
+    el.style.background = '#ef4444';
+    el.style.color = '#fff';
+    el.style.padding = '12px 24px';
+    el.style.borderRadius = '8px';
+    el.style.zIndex = '9999';
+    el.style.fontWeight = 'bold';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.style.display = 'block';
+  setTimeout(() => {
+    el!.style.display = 'none';
+  }, 2500);
+}
+
+
 function updateCost() {
   let cost = 0;
   const delivery = form.delivery.value;
   let shippingLocation = shippingLocationInput.value;
   let shippingCost = shippingLocationPrices[shippingLocation] || 0;
-
-  // If both are checked, cost = 0
   if (letBailey.checked && collectionInput && collectionInput.checked) {
     cost = 0;
   } else if (collectionInput && collectionInput.checked) {
     shippingCost = 0;
     shippingLocation = 'Collection';
-    // Only count weight and plastic, ignore delivery and shipping
     const weight = parseInt(form.weight.value) || 0;
     const plastic = form.plastic.value;
     cost = (weight * (basePrices[plastic] || 0.05));
@@ -40,7 +84,6 @@ function updateCost() {
     const plastic = form.plastic.value;
     cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery] + shippingCost;
   }
-
   let displayCost = cost;
   if (discountAmount && discountType) {
     if (discountType === 'percent') {
@@ -52,13 +95,11 @@ function updateCost() {
   totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
 }
 
-// Discount code validation will be handled on submit only
+
 form.addEventListener('input', updateCost);
 if (collectionInput) collectionInput.addEventListener('change', updateCost);
 
-
 function updateFieldDisabling() {
-  // Only disable if letBailey is checked
   form.weight.disabled = letBailey.checked;
   form.plastic.disabled = letBailey.checked;
 }
@@ -75,25 +116,23 @@ if (collectionInput) {
   });
 }
 
-// Initial state
 updateFieldDisabling();
+
 
 form.addEventListener('submit', async function(e) {
   e.preventDefault();
-
   const userId = localStorage.getItem('userId');
   if (!userId) {
-    alert("Please log in to place an order");
-    window.location.href = '/signup.html';
+    showError("Please log in to place an order");
+    setTimeout(() => {
+      window.location.href = '/signup.html';
+    }, 1500);
     return;
   }
-
   const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
   const originalButtonText = submitButton.textContent;
   submitButton.disabled = true;
   submitButton.textContent = 'Placing Order...';
-
-  // Validate discount code if present
   let code = discountInput?.value.trim();
   discountAmount = 0;
   discountType = null;
@@ -105,51 +144,44 @@ form.addEventListener('submit', async function(e) {
         discountAmount = parseFloat(data.discount.discount_value);
         discountType = data.discount.discount_type;
       } else {
-        alert('Invalid or expired discount code');
+        showError('Invalid or expired discount code');
         submitButton.disabled = false;
         submitButton.textContent = originalButtonText;
         return;
       }
     } catch (e) {
-      alert('Could not validate discount code');
+      showError('Could not validate discount code');
       submitButton.disabled = false;
       submitButton.textContent = originalButtonText;
       return;
     }
   }
-
-
   const formData = new FormData(form);
   const orderData = Object.fromEntries(formData);
   let shippingLocation = orderData.shipping_location as string;
   if (collectionInput && collectionInput.checked) {
     shippingLocation = 'Collection';
   }
-
-  // Validate weight
   let weight = 0;
   if (!letBailey.checked) {
     weight = parseInt(orderData.weight as string);
     if (isNaN(weight) || weight <= 0) {
-      alert('Please enter a valid weight in grams (must be a positive number).');
+      showError('Please enter a valid weight in grams (must be a positive number).');
       submitButton.disabled = false;
       submitButton.textContent = originalButtonText;
       return;
     }
   }
-
-  // Validate plastic
   let plastic = 'pla';
   if (!letBailey.checked) {
     plastic = (orderData.plastic as string) || '';
     if (!basePrices.hasOwnProperty(plastic)) {
-      alert('Please select a valid plastic type.');
+      showError('Please select a valid plastic type.');
       submitButton.disabled = false;
       submitButton.textContent = originalButtonText;
       return;
     }
   }
-
   let cost = 0;
   const delivery = orderData.delivery as string;
   let shippingCost = shippingLocationPrices[shippingLocation] || 0;
@@ -159,7 +191,6 @@ form.addEventListener('submit', async function(e) {
   } else {
     cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery] + shippingCost;
   }
-
   let displayCost = cost;
   if (discountAmount && discountType) {
     if (discountType === 'percent') {
@@ -169,9 +200,6 @@ form.addEventListener('submit', async function(e) {
     }
   }
   totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
-
-
-  // Add collection/delivery info to description
   let fulfillmentType = (collectionInput && collectionInput.checked) ? 'Collection' : 'Delivery';
   const submitData = {
     user_id: parseInt(userId),
@@ -188,9 +216,6 @@ form.addEventListener('submit', async function(e) {
     status: 'pending',
     discount_code: code || null
   };
-
-  console.log('Submitting order:', submitData);
-
   try {
     const response = await fetch('/submit', {
       method: 'POST',
@@ -199,19 +224,17 @@ form.addEventListener('submit', async function(e) {
       },
       body: JSON.stringify(submitData)
     });
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
     const data = await response.json();
-
     if (data.success) {
       submitButton.textContent = 'Order Placed!';
       submitButton.classList.remove('bg-violet-500', 'hover:bg-violet-600');
       submitButton.classList.add('bg-green-500');
       form.reset();
       updateCost();
+      showSuccess('Order placed successfully!');
       setTimeout(() => {
         window.location.href = '/account.html';
       }, 1000);
@@ -221,7 +244,7 @@ form.addEventListener('submit', async function(e) {
   } catch (error) {
     console.error('Error submitting order:', error);
     const errorMessage = error instanceof Error ? error.message : 'Network error';
-    alert(`Order failed: ${errorMessage}. Please try again.`);
+    showError(`Order failed: ${errorMessage}. Please try again.`);
   } finally {
     setTimeout(() => {
       submitButton.disabled = false;
