@@ -56,19 +56,27 @@ function updateCost() {
 form.addEventListener('input', updateCost);
 if (collectionInput) collectionInput.addEventListener('change', updateCost);
 
+
+function updateFieldDisabling() {
+  // Only disable if letBailey is checked
+  form.weight.disabled = letBailey.checked;
+  form.plastic.disabled = letBailey.checked;
+}
+
 letBailey.addEventListener('change', function() {
-  form.weight.disabled = letBailey.checked || (collectionInput && collectionInput.checked);
-  form.plastic.disabled = letBailey.checked || (collectionInput && collectionInput.checked);
+  updateFieldDisabling();
   updateCost();
 });
 
 if (collectionInput) {
   collectionInput.addEventListener('change', function() {
-    form.weight.disabled = letBailey.checked || collectionInput.checked;
-    form.plastic.disabled = letBailey.checked || collectionInput.checked;
+    updateFieldDisabling();
     updateCost();
   });
 }
+
+// Initial state
+updateFieldDisabling();
 
 form.addEventListener('submit', async function(e) {
   e.preventDefault();
@@ -110,11 +118,36 @@ form.addEventListener('submit', async function(e) {
     }
   }
 
+
   const formData = new FormData(form);
   const orderData = Object.fromEntries(formData);
   let shippingLocation = orderData.shipping_location as string;
   if (collectionInput && collectionInput.checked) {
     shippingLocation = 'Collection';
+  }
+
+  // Validate weight
+  let weight = 0;
+  if (!letBailey.checked) {
+    weight = parseInt(orderData.weight as string);
+    if (isNaN(weight) || weight <= 0) {
+      alert('Please enter a valid weight in grams (must be a positive number).');
+      submitButton.disabled = false;
+      submitButton.textContent = originalButtonText;
+      return;
+    }
+  }
+
+  // Validate plastic
+  let plastic = 'pla';
+  if (!letBailey.checked) {
+    plastic = (orderData.plastic as string) || '';
+    if (!basePrices.hasOwnProperty(plastic)) {
+      alert('Please select a valid plastic type.');
+      submitButton.disabled = false;
+      submitButton.textContent = originalButtonText;
+      return;
+    }
   }
 
   let cost = 0;
@@ -124,8 +157,6 @@ form.addEventListener('submit', async function(e) {
   if (letBailey.checked) {
     cost = deliveryPrices[delivery] + shippingCost;
   } else {
-    const weight = parseInt(orderData.weight as string) || 0;
-    const plastic = orderData.plastic as string;
     cost = (weight * (basePrices[plastic] || 0.05)) + deliveryPrices[delivery] + shippingCost;
   }
 
@@ -137,18 +168,21 @@ form.addEventListener('submit', async function(e) {
       displayCost = Math.max(0, cost - discountAmount);
     }
   }
-  totalCostSpan.textContent = `£${displayCost}` + (discountAmount ? ` (discount applied)` : '');
+  totalCostSpan.textContent = `£${displayCost.toFixed(2)}` + (discountAmount ? ` (discount applied)` : '');
 
+
+  // Add collection/delivery info to description
+  let fulfillmentType = (collectionInput && collectionInput.checked) ? 'Collection' : 'Delivery';
   const submitData = {
     user_id: parseInt(userId),
     model_name: orderData.model as string,
-    weight: letBailey.checked ? 0 : parseInt(orderData.weight as string),
-    plastic: letBailey.checked ? 'pla' : orderData.plastic as string,
+    weight: letBailey.checked ? 0 : weight,
+    plastic: letBailey.checked ? 'pla' : plastic,
     delivery: delivery,
     shipping_location: shippingLocation,
     price: parseFloat(displayCost.toFixed(2)),
     fulfilled: false,
-    description: `3D Print: ${orderData.model as string} - ${letBailey.checked ? 'pla' : orderData.plastic as string} - ${letBailey.checked ? 'Let Bailey handle weight' : orderData.weight + 'g'}`,
+    description: `3D Print: ${orderData.model as string} - ${letBailey.checked ? 'pla' : plastic} - ${letBailey.checked ? 'Let Bailey handle weight' : weight + 'g'} (${fulfillmentType})`,
     amount: parseFloat(displayCost.toFixed(2)),
     delivery_time: delivery,
     status: 'pending',
