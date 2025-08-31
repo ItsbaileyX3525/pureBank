@@ -59,18 +59,21 @@ const port = useSSL ? 443 : 3000;
 
 const saltRounds = 10;
 
-var connection = mysql.createConnection({
+
+const pool = mysql.createPool({
     host: 'localhost',
     user: 'adminDude',
     password: process.env.DATABASE_PASSWORD,
-    database: 'orders'
-})
+    database: 'orders',
+    connectionLimit: 10 // adjust as needed
+});
 
-connection.connect((err) => {
+pool.getConnection((err, connection) => {
     if (err) {
         console.error('Database connection error:', err);
     } else {
         console.log('Connected to database');
+        connection.release();
     }
 });
 
@@ -96,7 +99,7 @@ app.post('/signin', (req, res) => {
             console.error(err);
             return res.status(500).json({ success: false, error: 'failed to hash password' });
         }
-        connection.query(
+        pool.query(
             'INSERT INTO users (username, password, profile_image_url) VALUES (?, ?, ?)',
             [username, hash, imageUrl],
             (err, results) => {
@@ -114,7 +117,7 @@ app.post('/signin', (req, res) => {
 
 // Admin: Get all discount codes
 app.get('/admin/discounts', (req, res) => {
-    connection.query('SELECT * FROM discount_codes ORDER BY created_at DESC', [], (err, results) => {
+    pool.query('SELECT * FROM discount_codes ORDER BY created_at DESC', [], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: 'Database error', details: err });
         }
@@ -128,7 +131,7 @@ app.post('/admin/discounts', (req, res) => {
     if (!code || !discount_type || discount_value === undefined) {
         return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
-    connection.query(
+    pool.query(
         'INSERT INTO discount_codes (code, description, discount_type, discount_value, active, expires_at, max_uses) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [code, description || '', discount_type, discount_value, active !== undefined ? !!active : true, expires_at || null, max_uses !== undefined ? parseInt(max_uses) : -1],
         (err, results) => {
@@ -146,7 +149,7 @@ app.post('/admin/discounts', (req, res) => {
 // Admin: Delete a discount code
 app.delete('/admin/discounts/:id', (req, res) => {
     const id = req.params.id;
-    connection.query('DELETE FROM discount_codes WHERE id = ?', [id], (err, results) => {
+    pool.query('DELETE FROM discount_codes WHERE id = ?', [id], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: 'Database error', details: err });
         }
@@ -161,7 +164,7 @@ app.post('/login', (req, res) => {
         return res.status(400).json({ success: false, error: 'username and password are required' });
     }
 
-    connection.query(
+    pool.query(
         'SELECT id, password FROM users WHERE username = ?',
         [username],
         (err, results) => {
@@ -194,7 +197,7 @@ app.post('/login', (req, res) => {
 // Validate discount code (check usage limit)
 app.get('/api/discount/:code', (req, res) => {
     const code = req.params.code;
-    connection.query(
+    pool.query(
         'SELECT * FROM discount_codes WHERE code = ? AND active = TRUE AND (expires_at IS NULL OR expires_at > NOW())',
         [code],
         (err, results) => {
@@ -222,7 +225,7 @@ app.post('/submit', (req, res) => {
 
     function insertOrder(discount_code_id = null, discount_applied = 0, incrementDiscount = false) {
         const orderData = [user_id, model_name, plastic, weight, delivery, shipping_location, price, !!fulfilled, description || '', amount || price, delivery_time || delivery, status || 'pending', discount_code_id, discount_applied];
-        connection.query(
+        pool.query(
             'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, shipping_location, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             orderData,
             (err, results) => {
@@ -231,7 +234,7 @@ app.post('/submit', (req, res) => {
                     return res.status(500).json({ success: false, error: 'Database error', details: err });
                 }
                 if (incrementDiscount && discount_code_id) {
-                    connection.query('UPDATE discount_codes SET uses = uses + 1 WHERE id = ?', [discount_code_id], (err2) => {
+                    pool.query('UPDATE discount_codes SET uses = uses + 1 WHERE id = ?', [discount_code_id], (err2) => {
                         if (err2) {
                             console.error('Failed to increment discount uses:', err2, 'for discount_code_id:', discount_code_id);
                         }
@@ -243,7 +246,7 @@ app.post('/submit', (req, res) => {
     }
 
     if (discount_code) {
-        connection.query(
+        pool.query(
             'SELECT * FROM discount_codes WHERE code = ? AND active = TRUE AND (expires_at IS NULL OR expires_at > NOW())',
             [discount_code],
             (err, results) => {
@@ -278,7 +281,7 @@ app.post('/submit', (req, res) => {
 app.get('/api/user/:id', (req, res) => {
     const userId = req.params.id;
     
-    connection.query(
+    pool.query(
         'SELECT id, username, profile_image_url, created_at FROM users WHERE id = ?',
         [userId],
         (err, results) => {
@@ -297,7 +300,7 @@ app.get('/api/user/:id', (req, res) => {
 app.get('/api/user/:id/orders', (req, res) => {
     const userId = req.params.id;
     
-    connection.query(
+    pool.query(
         'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
         [userId],
         (err, results) => {
@@ -313,7 +316,7 @@ app.get('/api/user/:id/orders', (req, res) => {
 app.get('/api/user/:id/orders/active', (req, res) => {
     const userId = req.params.id;
     
-    connection.query(
+    pool.query(
         'SELECT * FROM orders WHERE user_id = ? AND (status = "pending" OR status = "confirmed") ORDER BY created_at DESC',
         [userId],
         (err, results) => {
@@ -329,7 +332,7 @@ app.get('/api/user/:id/orders/active', (req, res) => {
 app.get('/api/user/:id/orders/completed', (req, res) => {
     const userId = req.params.id;
     
-    connection.query(
+    pool.query(
         'SELECT * FROM orders WHERE user_id = ? AND status = "completed" ORDER BY created_at DESC',
         [userId],
         (err, results) => {
@@ -430,7 +433,7 @@ app.post('/admin/orders', requireAdmin, (req, res) => {
         0.00  // discount_applied
     ];
     // Insert order
-    connection.query(
+    pool.query(
         'INSERT INTO orders (user_id, model_name, plastic, weight, delivery, shipping_location, price, fulfilled, description, amount, delivery_time, status, discount_code_id, discount_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         orderData,
         (err, results) => {
@@ -444,7 +447,7 @@ app.post('/admin/orders', requireAdmin, (req, res) => {
 });
 
 app.get('/admin/orders', requireAdmin, (req, res) => {
-    connection.query(
+    pool.query(
         'SELECT o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.created_at DESC',
         (err, results) => {
             if (err) {
@@ -458,7 +461,7 @@ app.get('/admin/orders', requireAdmin, (req, res) => {
 });
 
 app.get('/admin/users', requireAdmin, (req, res) => {
-    connection.query(
+    pool.query(
         'SELECT id, username, profile_image_url, created_at FROM users ORDER BY created_at DESC',
         (err, results) => {
             if (err) {
@@ -474,7 +477,7 @@ app.get('/admin/users', requireAdmin, (req, res) => {
 app.post('/admin/orders/:id/confirm', requireAdmin, (req, res) => {
     const orderId = req.params.id;
     
-    connection.query(
+    pool.query(
         'UPDATE orders SET status = ?, fulfilled = ? WHERE id = ?',
         ['confirmed', true, orderId],
         (err, results) => {
@@ -493,7 +496,7 @@ app.post('/admin/orders/:id/confirm', requireAdmin, (req, res) => {
 app.post('/admin/orders/:id/complete', requireAdmin, (req, res) => {
     const orderId = req.params.id;
     
-    connection.query(
+    pool.query(
         'UPDATE orders SET status = ?, fulfilled = ? WHERE id = ?',
         ['completed', true, orderId],
         (err, results) => {
@@ -512,7 +515,7 @@ app.post('/admin/orders/:id/complete', requireAdmin, (req, res) => {
 app.delete('/admin/orders/:id', requireAdmin, (req, res) => {
     const orderId = req.params.id;
     
-    connection.query(
+    pool.query(
         'DELETE FROM orders WHERE id = ?',
         [orderId],
         (err, results) => {
@@ -532,7 +535,7 @@ app.delete('/admin/users/:id', requireAdmin, (req, res) => {
     const userId = req.params.id;
     
     // First delete all orders for this user
-    connection.query(
+    pool.query(
         'DELETE FROM orders WHERE user_id = ?',
         [userId],
         (err) => {
@@ -541,9 +544,8 @@ app.delete('/admin/users/:id', requireAdmin, (req, res) => {
                 res.status(500).json({ success: false, message: 'Database error' });
                 return;
             }
-            
             // Then delete the user
-            connection.query(
+            pool.query(
                 'DELETE FROM users WHERE id = ?',
                 [userId],
                 (err, results) => {
@@ -569,7 +571,7 @@ app.post('/admin/orders/:id/amount', async (req, res) => {
     if (isNaN(orderId) || typeof amount !== 'number') {
         return res.status(400).json({ success: false, error: 'Invalid input' });
     }
-    connection.query('UPDATE orders SET amount = ?, price = ? WHERE id = ?', [amount, amount, orderId], (err, results) => {
+    pool.query('UPDATE orders SET amount = ?, price = ? WHERE id = ?', [amount, amount, orderId], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: 'Database error' });
         }
@@ -584,7 +586,7 @@ app.patch('/admin/order/:id/discount', requireAdmin, (req, res) => {
     if (isNaN(orderId) || typeof discount_applied !== 'number' || discount_applied < 0) {
         return res.status(400).json({ success: false, error: 'Invalid input' });
     }
-    connection.query('UPDATE orders SET discount_applied = ? WHERE id = ?', [discount_applied, orderId], (err, results) => {
+    pool.query('UPDATE orders SET discount_applied = ? WHERE id = ?', [discount_applied, orderId], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: 'Database error' });
         }
