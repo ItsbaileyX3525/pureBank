@@ -1,5 +1,5 @@
 
-const basePrices: Record<string, number> = { pla: 0.015, pbse: 0.03, abs: 0.05 };
+const basePrices: Record<string, number> = { pla: 0.0175, pbse: 0.025, abs: 0.045 };
 const deliveryPrices: Record<string, number> = { standard: 0, fast: 2, express: 3.50 };
 const shippingLocationPrices: Record<string, number> = {
   Barrow: 0,
