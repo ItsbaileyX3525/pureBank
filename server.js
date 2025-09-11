@@ -119,35 +119,9 @@ pool.getConnection((err, connection) => {
 });
 
 const setupSessionStore = () => {
-    const MySQLStoreSession = MySQLStore(session);
-    let sessionStore;
-
-    if (useInMemoryDB) {
-        console.log('Using memory store for sessions');
-        sessionStore = undefined;
-    } else {
-        sessionStore = new MySQLStoreSession({
-            host: 'localhost',
-            user: 'adminDude',
-            password: process.env.DATABASE_PASSWORD,
-            database: 'orders'
-        });
-    }
-
-    app.use(session({
-        key: 'admin_session',
-        secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-this',
-        store: sessionStore,
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-            maxAge: 1000 * 60 * 60 * 24,
-            secure: useSSL,
-            httpOnly: true
-        }
-    }));
-
-    console.log('Session store configured');
+    // Session middleware is already configured above
+    // This function now just handles server startup
+    console.log('Database initialization complete, starting server...');
     
     startServer();
 };
@@ -372,6 +346,20 @@ app.get('/hello', (req, res) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Configure session middleware immediately with memory store
+app.use(session({
+    key: 'admin_session',
+    secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-this',
+    store: undefined, // Use memory store by default
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24,
+        secure: false, // Will be set to true if SSL is used
+        httpOnly: true
+    }
+}));
 
 app.post('/signin', (req, res) => {
     const { username, password, profile_image_url, shipping_address } = req.body;
@@ -809,6 +797,46 @@ app.delete('/admin/users/:id', requireAdmin, (req, res) => {
             );
         }
     );
+});
+
+// Get detailed user account information
+app.get('/admin/users/:id/details', requireAdmin, (req, res) => {
+    const userId = req.params.id;
+    
+    if (useInMemoryDB) {
+        const user = inMemoryDB.users.find(u => u.id === parseInt(userId));
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        
+        const userDetails = {
+            id: user.id,
+            username: user.username,
+            profile_image_url: user.profile_image_url,
+            shipping_address: user.shipping_address,
+            created_at: user.created_at,
+            email: user.email || null,
+            phone: user.phone || null,
+            balance: user.balance || 0
+        };
+        
+        res.json({ success: true, user: userDetails });
+    } else {
+        dbQuery(
+            'SELECT id, username, profile_image_url, shipping_address, created_at, email, phone, balance FROM users WHERE id = ?',
+            [userId],
+            (err, results) => {
+                if (err) {
+                    console.error('Error fetching user details:', err);
+                    res.status(500).json({ success: false, message: 'Database error' });
+                } else if (results.length === 0) {
+                    res.status(404).json({ success: false, message: 'User not found' });
+                } else {
+                    res.json({ success: true, user: results[0] });
+                }
+            }
+        );
+    }
 });
 
 

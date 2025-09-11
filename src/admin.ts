@@ -17,6 +17,9 @@ interface User {
   profile_image_url: string;
   shipping_address?: string;
   created_at: string;
+  email?: string;
+  phone?: string;
+  balance?: number;
 }
 
 class AdminPanel {
@@ -164,7 +167,7 @@ class AdminPanel {
                 ${d.active ? '<span class="ml-2 text-green-400">Active</span>' : '<span class="ml-2 text-red-400">Inactive</span>'}
                 ${d.expires_at ? `<span class="ml-2 text-yellow-400">Expires: ${new Date(d.expires_at).toLocaleString()}</span>` : ''}
               </div>
-              <button class="delete-discount-btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded" data-id="${d.id}">Delete</button>
+              <button class="delete-discount-btn bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded cursor-pointer" data-id="${d.id}">Delete</button>
             `;
             div.querySelector('.delete-discount-btn')?.addEventListener('click', () => this.deleteDiscount(d.id));
             listDiv.appendChild(div);
@@ -517,11 +520,11 @@ class AdminPanel {
           <p class="text-gray-400 text-sm">Amount:</p>
           <div class="flex items-center gap-2">
             <input type="number" step="0.01" min="0" value="${order.amount}" class="order-amount-input bg-gray-800 text-white px-2 py-1 rounded w-24" data-id="${order.id}" />
-            <button class="update-amount-btn bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded" data-id="${order.id}">Update</button>
+            <button class="update-amount-btn bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded cursor-pointer" data-id="${order.id}">Update</button>
           </div>
               <div class="flex items-center gap-2">
                 <input type="number" step="0.01" min="0" value="${order.discount_applied ?? 0}" class="order-discount-input bg-gray-800 text-green-300 px-2 py-1 rounded w-24" data-id="${order.id}" />
-                <button class="update-discount-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded" data-id="${order.id}">Update Discount</button>
+                <button class="update-discount-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded cursor-pointer" data-id="${order.id}">Update Discount</button>
               </div>
           ${discount}
         </div>
@@ -535,17 +538,20 @@ class AdminPanel {
         </div>
       </div>
       <div class="flex gap-2 mt-4">
+        <button class="view-account-btn bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-user-id="${order.user_id}">
+          View User Account
+        </button>
         ${order.status === 'pending' ? `
-          <button class="confirm-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${order.id}">
+          <button class="confirm-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${order.id}">
             Confirm Order
           </button>
         ` : ''}
         ${order.status === 'confirmed' ? `
-          <button class="complete-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${order.id}">
+          <button class="complete-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${order.id}">
             Mark Complete
           </button>
         ` : ''}
-        <button class="delete-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${order.id}">
+        <button class="delete-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${order.id}">
           Delete Order
         </button>
       </div>
@@ -573,10 +579,13 @@ class AdminPanel {
       </div>
       
       <div class="flex gap-2">
-        <button class="view-user-orders-btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${user.id}">
+        <button class="view-account-details-btn bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${user.id}">
+          View Account Details
+        </button>
+        <button class="view-user-orders-btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${user.id}">
           View Orders
         </button>
-        <button class="delete-user-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors" data-id="${user.id}">
+        <button class="delete-user-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${user.id}">
           Delete User
         </button>
       </div>
@@ -590,6 +599,7 @@ class AdminPanel {
     const confirmBtn = element.querySelector('.confirm-btn');
     const completeBtn = element.querySelector('.complete-btn');
     const deleteBtn = element.querySelector('.delete-btn');
+    const viewAccountBtn = element.querySelector('.view-account-btn');
     const updateAmountBtn = element.querySelector('.update-amount-btn') as HTMLButtonElement;
     const amountInput = element.querySelector('.order-amount-input') as HTMLInputElement;
         const updateDiscountBtn = element.querySelector('.update-discount-btn') as HTMLButtonElement;
@@ -598,6 +608,14 @@ class AdminPanel {
     confirmBtn?.addEventListener('click', () => this.confirmOrder(orderId));
     completeBtn?.addEventListener('click', () => this.completeOrder(orderId));
     deleteBtn?.addEventListener('click', () => this.deleteOrder(orderId));
+    
+    viewAccountBtn?.addEventListener('click', () => {
+      const userId = parseInt(viewAccountBtn.getAttribute('data-user-id') || '0');
+      if (userId > 0) {
+        this.viewUserAccount(userId);
+      }
+    });
+
     updateAmountBtn?.addEventListener('click', () => {
       if (!amountInput) return;
       const newAmount = parseFloat(amountInput.value);
@@ -667,9 +685,11 @@ class AdminPanel {
   }
 
   private bindUserActions(element: HTMLElement, userId: number): void {
+    const viewAccountDetailsBtn = element.querySelector('.view-account-details-btn');
     const viewOrdersBtn = element.querySelector('.view-user-orders-btn');
     const deleteUserBtn = element.querySelector('.delete-user-btn');
 
+    viewAccountDetailsBtn?.addEventListener('click', () => this.viewUserAccount(userId));
     viewOrdersBtn?.addEventListener('click', () => this.viewUserOrders(userId));
     deleteUserBtn?.addEventListener('click', () => this.deleteUser(userId));
   }
@@ -763,6 +783,136 @@ class AdminPanel {
     } catch (error) {
       this.showError('Error deleting user');
     }
+  }
+
+  private async viewUserAccount(userId: number): Promise<void> {
+    try {
+      const response = await fetch(`/admin/users/${userId}/details`);
+      
+      if (response.status === 401) {
+        this.isAuthenticated = false;
+        this.showAuthForm();
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        this.displayUserAccountModal(data.user);
+      } else {
+        this.showError('Failed to load user account details');
+      }
+    } catch (error) {
+      console.error('Error loading user account:', error);
+      this.showError('Error loading user account details');
+    }
+  }
+
+  private displayUserAccountModal(user: User): void {
+    // Create modal overlay
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    modalOverlay.id = 'user-account-modal';
+
+    const formattedDate = new Date(user.created_at).toLocaleDateString();
+    const formattedBalance = user.balance ? `£${user.balance.toFixed(2)}` : 'N/A';
+
+    modalOverlay.innerHTML = `
+      <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-white">User Account Details</h2>
+          <button class="close-modal-btn text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex items-center gap-4 md:col-span-2">
+            <img src="${user.profile_image_url}" alt="${user.username}" class="w-20 h-20 rounded-full object-cover">
+            <div>
+              <h3 class="text-xl font-semibold text-white">${user.username}</h3>
+              <p class="text-gray-400">User ID: ${user.id}</p>
+            </div>
+          </div>
+          
+          <div>
+            <h4 class="text-lg font-semibold text-white mb-3">Personal Information</h4>
+            <div class="space-y-2">
+              <div>
+                <p class="text-gray-400 text-sm">Email:</p>
+                <p class="text-white">${user.email || 'Not provided'}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Phone:</p>
+                <p class="text-white">${user.phone || 'Not provided'}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Account Balance:</p>
+                <p class="text-white font-semibold ${user.balance && user.balance > 0 ? 'text-green-400' : ''}">${formattedBalance}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 text-sm">Member Since:</p>
+                <p class="text-white">${formattedDate}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 class="text-lg font-semibold text-white mb-3">Delivery Information</h4>
+            <div>
+              <p class="text-gray-400 text-sm">Shipping Address:</p>
+              <p class="text-white">${user.shipping_address || 'No address provided'}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-6 flex gap-3">
+          <button class="view-user-orders-from-modal-btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${user.id}">
+            View All Orders
+          </button>
+          <button class="edit-user-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer" data-id="${user.id}">
+            Edit Account
+          </button>
+          <button class="close-modal-btn bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer">
+            Close
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Add event listeners
+    const closeButtons = modalOverlay.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modalOverlay.remove();
+      });
+    });
+
+    const viewOrdersBtn = modalOverlay.querySelector('.view-user-orders-from-modal-btn');
+    viewOrdersBtn?.addEventListener('click', () => {
+      modalOverlay.remove();
+      this.viewUserOrders(user.id);
+    });
+
+    const editUserBtn = modalOverlay.querySelector('.edit-user-btn');
+    editUserBtn?.addEventListener('click', () => {
+      modalOverlay.remove();
+      this.editUserAccount(user.id);
+    });
+
+    // Close modal when clicking outside
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        modalOverlay.remove();
+      }
+    });
+
+    document.body.appendChild(modalOverlay);
+  }
+
+  private async editUserAccount(userId: number): Promise<void> {
+    // This method can be expanded to show an edit form
+    // For now, we'll just show an alert
+    alert(`User account editing feature coming soon for user ID: ${userId}!`);
+    // TODO: Implement user account editing functionality
   }
 
   private viewUserOrders(userId: number): void {
