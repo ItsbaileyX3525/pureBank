@@ -15,6 +15,7 @@ interface User {
   id: number;
   username: string;
   profile_image_url: string;
+  shipping_address?: string;
   created_at: string;
 }
 
@@ -567,6 +568,7 @@ class AdminPanel {
           <h3 class="text-xl font-semibold text-white">${user.username}</h3>
           <p class="text-gray-400">User ID: ${user.id}</p>
           <p class="text-gray-400">Joined: ${formattedDate}</p>
+          <p class="text-gray-400">Delivery Address: ${user.shipping_address || 'Not set'}</p>
         </div>
       </div>
       

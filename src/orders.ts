@@ -9,6 +9,16 @@ type Project = {
 
 const projects: Project[] = [
   {
+    image: '/assets/Redahn.gif',
+    name: 'Redahn Figurine',
+    story: 'A custom figurine of Redahn from Elden Ring, made for a dedicated gamer and fan of the series. The intricate details were a challenge to capture in 3D printing.'
+  },
+  {
+    image: '/assets/karambit.webp',
+    name: 'Karambit Knife',
+    story: 'A karambit knife replica from CS:GO, printed for a collector. The curved blade and ergonomic handle were designed to mimic the real thing as closely as possible.'
+  },
+  {
     image: '/assets/thing.png',
     name: 'Fidget thing',
     story: 'A fidget toy that helps calm the noise in everybodies head, this print was made specifally to have something to play with!'
@@ -27,6 +37,11 @@ const projects: Project[] = [
     image: '/assets/batarang.png',
     name: 'Arkham knight batarang',
     story: 'Made for a fan of the batman series, the batarang was a dynamic print that allows the user to retract and extent the batarang whenever they need, with a sharp print, it can deal damage to anybody!'
+  },
+  {
+    image: '/assets/Rotation.gif',
+    name: 'Rotation device fidget thing',
+    story: 'A weird thing that you can rotate and it acts like a chicken head like how it doesn\'t move when you move it, overall quite fun to fidget with!'
   },
   {
     image: '/assets/LavaChicken.png',

@@ -3,6 +3,7 @@ class SignupPage {
     private usernameInput: HTMLInputElement;
     private passwordInput: HTMLInputElement;
     private confirmPasswordInput: HTMLInputElement;
+    private shippingAddressInput: HTMLInputElement;
     private errorMessage: HTMLElement;
     private successMessage: HTMLElement;
     private submitButton: HTMLButtonElement;
@@ -12,6 +13,7 @@ class SignupPage {
         this.usernameInput = document.getElementById('username') as HTMLInputElement;
         this.passwordInput = document.getElementById('password') as HTMLInputElement;
         this.confirmPasswordInput = document.getElementById('confirm-password') as HTMLInputElement;
+        this.shippingAddressInput = document.getElementById('shipping-address') as HTMLInputElement;
         this.errorMessage = document.getElementById('error-message') as HTMLElement;
         this.successMessage = document.getElementById('success-message') as HTMLElement;
         this.submitButton = document.getElementById('signup-btn') as HTMLButtonElement;
@@ -25,6 +27,7 @@ class SignupPage {
         this.confirmPasswordInput.addEventListener('input', this.validatePasswordMatch.bind(this));
         this.usernameInput.addEventListener('input', this.clearMessages.bind(this));
         this.passwordInput.addEventListener('input', this.clearMessages.bind(this));
+        this.shippingAddressInput.addEventListener('input', this.clearMessages.bind(this));
     }
 
     private validatePasswordMatch() {
@@ -86,6 +89,7 @@ class SignupPage {
         const username = this.usernameInput.value.trim();
         const password = this.passwordInput.value;
         const confirmPassword = this.confirmPasswordInput.value;
+        const shippingAddress = this.shippingAddressInput.value.trim();
 
         if (!username) {
             this.showError('Username is required');
@@ -117,6 +121,12 @@ class SignupPage {
             return false;
         }
 
+        if (!shippingAddress) {
+            this.showError('Delivery address is required');
+            this.shippingAddressInput.focus();
+            return false;
+        }
+
         return true;
     }
 
@@ -126,7 +136,8 @@ class SignupPage {
         return {
             username: this.usernameInput.value.trim(),
             password: this.passwordInput.value,
-            profile_image_url: selectedImage?.value || '/assets/default.png'
+            profile_image_url: selectedImage?.value || '/assets/default.png',
+            shipping_address: this.shippingAddressInput.value.trim()
         };
     }
 

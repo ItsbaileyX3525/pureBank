@@ -3,6 +3,7 @@ interface User {
     id: number;
     username: string;
     profile_image_url?: string;
+    shipping_address?: string;
     created_at?: string;
 }
 
@@ -135,6 +136,11 @@ class AccountPage {
         const usernameElement = document.getElementById('username');
         if (usernameElement) {
             usernameElement.textContent = this.currentUser.username;
+        }
+
+        const shippingAddressElement = document.getElementById('shipping-address');
+        if (shippingAddressElement) {
+            shippingAddressElement.textContent = this.currentUser.shipping_address || 'No delivery address set';
         }
 
         const profileImageElement = document.getElementById('profile-image') as HTMLImageElement;
